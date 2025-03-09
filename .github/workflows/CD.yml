@@ -24,10 +24,11 @@ jobs:
       - name: 'Deploy to Constellation Ubuntu Server'
         run: |
           # 배포 스크립트를 리눅스 서버에서 실행합니다.
-          ssh -p "${{ secrets.SERVER_PORT }}" "${{ secrets.SERVER_USERNAME }}"@"${{ secrets.SERVER_ADDR }}" \
-          'cd ~/dockers/CrawlingObserverAPI && \
-          docker build . -t CrawlingObserverAPI:${{ github.sha }} && \
-          docker push CrawlingObserverAPI:${{ github.sha }}'
+          ssh -p "${{ secrets.SERVER_PORT }}" "${{ secrets.SERVER_USERNAME }}"@"${{ secrets.SERVER_ADDR }}" << 'EOF'
+            cd ~/dockers/CrawlingObserverAPI
+            docker build . -t CrawlingObserverAPI:${{ github.sha }}
+            docker push CrawlingObserverAPI:${{ github.sha }}
+          EOF
 
   # build 작업이 완료되면 저장소에 푸시된 docker 이미지를 배포
   deploy:
