@@ -1,0 +1,51 @@
+name: Python app deployment to Ubuntu Server
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # docker 이미지를 빌드하고 저장소에 푸시
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 'Checkout Github Action' 
+        uses: actions/checkout@main
+
+      - name: 'Login via Constellation Ubuntu Server'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.SERVER_ADDR }}" >> ~/.ssh/known_hosts
+
+      - name: 'Deploy to Constellation Ubuntu Server'
+        run: |
+          # 배포 스크립트를 리눅스 서버에서 실행합니다.
+          ssh -p "${{ secrets.SERVER_PORT }}" "${{ secrets.SERVER_USERNAME }}"@"${{ secrets.SERVER_ADDR }}" \
+          'cd ~/dockers/CrawlingObserverAPI && \
+          docker build . -t CrawlingObserverAPI:${{ github.sha }} && \
+          docker push CrawlingObserverAPI:${{ github.sha }}'
+
+  # build 작업이 완료되면 저장소에 푸시된 docker 이미지를 배포
+  deploy:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 'Deploy Docker Container on Remote Server'
+        run: |
+          ssh -p "${{ secrets.SERVER_PORT }}" "${{ secrets.SERVER_USERNAME }}"@"${{ secrets.SERVER_ADDR }}" << 'EOF'
+            # 최신 이미지 pull
+            docker pull CrawlingObserverAPI:${{ github.sha }}
+            
+            # 기존 컨테이너가 실행 중이면 종료 및 삭제
+            docker stop CrawlingObserverAPI || true
+            docker rm CrawlingObserverAPI || true
+            
+            # 새 컨테이너 실행 (필요한 포트 매핑 등 옵션을 추가)
+            docker run -d --name CrawlingObserverAPI -p 8000:8000 CrawlingObserverAPI:${{ github.sha }}
+          EOF
+
+    
