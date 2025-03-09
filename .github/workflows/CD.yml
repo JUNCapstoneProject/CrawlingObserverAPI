@@ -45,7 +45,7 @@ jobs:
             docker rm CrawlingObserverAPI || true
             
             # 새 컨테이너 실행 (필요한 포트 매핑 등 옵션을 추가)
-            docker run -d --name CrawlingObserverAPI -p 8000:8000 CrawlingObserverAPI:${{ github.sha }}
+            docker run -d --name CrawlingObserverAPI -p 7000:7000 CrawlingObserverAPI:${{ github.sha }}
           EOF
 
     
