@@ -10,6 +10,7 @@ class InvestingReportCrawler(CrawlerUsingRequest):
     def __init__(self, name, config):
         super().__init__(name, config)
         self.scraper = cloudscraper.create_scraper()
+        self.tag = "InvestingReports"
 
     # 테스트용
     def save_data(self, articles):

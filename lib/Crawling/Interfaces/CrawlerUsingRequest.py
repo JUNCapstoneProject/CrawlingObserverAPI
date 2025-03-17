@@ -9,6 +9,7 @@ from ..utils.random_delay import random_delay
 class CrawlerUsingRequest(CrawlerInterface):
     def __init__(self, name, selector_config):
         super().__init__(name)
+        self.tag = None
         self.config = selector_config
         self.max_articles = 2 # 크롤링할 뉴스 수
         self.max_retries = 100  # 요청 재시도 횟수
@@ -54,9 +55,9 @@ class CrawlerUsingRequest(CrawlerInterface):
             # # ***나중에 분배자로 바꿀 것***
             # self.save_data(articles)
 
-            ariticles_df = pd.DataFrame(articles)
+            articles_df = pd.DataFrame(articles)
 
-            return ariticles_df
+            return {"df": articles_df, "tag": self.tag}
         else:
             print("크롤링 실패")
             return []    

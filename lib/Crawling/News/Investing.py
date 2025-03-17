@@ -11,7 +11,8 @@ class InvestingCrawler(CrawlerUsingRequest):
     def __init__(self, name, config):
         super().__init__(name, config)
         self.scraper = cloudscraper.create_scraper()
-    
+        self.tag = "InvestingNews"
+        
     """ 오버라이딩 코드들 """
     
     def crawl_content(self, url):

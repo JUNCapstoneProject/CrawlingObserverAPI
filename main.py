@@ -1,7 +1,7 @@
-import sys
-import os
+# import sys
+# import os
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from lib.Crawling import run  # 크롤링 실행 함수
 # from Utill.Socket.Server import SocketServer  # 소켓 서버

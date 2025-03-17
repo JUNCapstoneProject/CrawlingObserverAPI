@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 import time
 import datetime
+import pandas as pd
+import os
+from uuid import uuid4
 from ..config.LoadConfig import load_config
 
 class CrawlerInterface(ABC):
@@ -29,17 +32,60 @@ class CrawlerInterface(ABC):
         #     if start_hour <= current_hour <= end_hour:
         #         return True, interval
         # return False, None
-        return True, 1 # 테스트용 임시
+        return True, 10 # 테스트용 임시
 
     def run(self):
         """ 스케줄 확인 후 크롤링 실행 """
         print(f"DEBUG: {self.__class__.__name__}.run() 실행됨")  # 🔍 디버깅용
 
+        # 현재 파일(`lib/Crawling/Interfaces/`)의 절대 경로를 가져옴
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # `lib/Crawling/`까지 이동
+
+        # `lib/Datas` 절대 경로 설정
+        temp_dir = os.path.join(base_dir, "Datas")
+
         while True:
             is_crawling, interval = self.is_crawling_time()
             if is_crawling:
                 print(f"{self.__class__.__name__}: 현재 크롤링 가능 시간입니다. 크롤링을 시작합니다.")
-                self.crawl()
+
+                # 크롤링 실행 -> DataFrame 리스트 또는 단일 DataFrame 반환
+                result = self.crawl()
+
+                # 크롤링 성공 시 처리
+                if result:
+
+                    if isinstance(result, dict):  # ✅ 만약 단일 딕셔너리라면 리스트로 변환
+                        result = [result]
+
+                    for idx, data in enumerate(result):
+
+                        try:
+                            df = data["df"]  # DataFrame
+                            tag = data.get("tag", "unknown")  # 태그 (없으면 "unknown" 기본값)
+
+                            # ✅ DataFrame이 정상적으로 넘어왔는지 확인
+                            if df is None:
+                                print(f"[WARNING] df가 None입니다. 태그: {tag}, 인덱스: {idx}")
+                                continue
+
+                            if not isinstance(df, pd.DataFrame):
+                                print(f"[ERROR] df가 DataFrame이 아닙니다! type: {type(df)}, 태그: {tag}, 인덱스: {idx}")
+                                continue
+
+                            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                            filename = f"{temp_dir}/crawled_data_{timestamp}_{tag}_{idx}_{uuid4().hex[:8]}.csv"
+
+
+                            df.to_csv(filename, index=False, encoding="utf-8-sig")
+                            print(f"✔ 크롤링 데이터 저장 완료: {filename}")
+
+                        except Exception as e:
+                            print(f"   [ERROR] 파일 저장 실패! (태그: {tag}, 인덱스: {idx})")
+                            print(f"   ▶ 예외 메시지: {e}")
+                else:
+                    print("[WARNING] 크롤링 결과 없음! `crawl()`에서 반환된 데이터가 없습니다.")
+
             else:
                 now = datetime.datetime.now()
                 print(f"[{now}] {self.__class__.__name__}: 현재 크롤링 시간이 아닙니다. 대기 중...")

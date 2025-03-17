@@ -49,5 +49,5 @@ class FredCrawler(CrawlerInterface):
         # print(df.tail())  # 최근 5개 행만 출력
 
         print(f"{self.__class__.__name__}: 데이터 수집 완료")  
-
-        return macro_df  # 필요하면 다른 곳에서 활용할 수 있도록 반환
+        
+        return {"df": macro_df, "tag": "macro"}
