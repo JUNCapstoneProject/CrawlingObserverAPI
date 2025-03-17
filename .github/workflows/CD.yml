@@ -23,18 +23,16 @@ jobs:
       - name: 'Copy project files to Remote Server'
         run: |
           # 원격 서버에 배포 폴더가 없으면 생성
-          ssh -p "${{ secrets.SERVER_PORT }}" "${{ secrets.SERVER_USERNAME }}"@"${{ secrets.SERVER_ADDR }}" "mkdir -p ~/dockers/CrawlingObserverAPI"
+          ssh -p "${{ secrets.SERVER_PORT }}" "${{ secrets.SERVER_USERNAME }}"@"${{ secrets.SERVER_ADDR }}" "mkdir -p ~/dockers/CrawlingObserverAPI/service"
           # rsync로 프로젝트 전체 파일을 로컬에서 원격 서버로 복사
-          rsync -avz -e "ssh -p ${{ secrets.SERVER_PORT }}" ./* ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_ADDR }}:~/dockers/CrawlingObserverAPI/
+          rsync -avz -e "ssh -p ${{ secrets.SERVER_PORT }}" ./* ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_ADDR }}:~/dockers/CrawlingObserverAPI/service
 
-      - name: 'Deploy using Docker Compose on Remote Server'
+      - name: 'Deploy using Docker on Remote Server'
         run: |
           ssh -p "${{ secrets.SERVER_PORT }}" "${{ secrets.SERVER_USERNAME }}"@"${{ secrets.SERVER_ADDR }}" << 'EOF'
-            cd ~/dockers/CrawlingObserverAPI
-            # docker-compose를 사용하여 이미지 빌드
-            docker-compose build
-            # 기존 컨테이너 종료 및 삭제
-            docker-compose down
-            # docker-compose를 이용해 컨테이너들을 백그라운드 실행
-            docker-compose up -d
+            cd ~/dockers/CrawlingObserverAPI/service
+            docker build -t docker:CrawlingObserverAPI_service .
+            docker stop CrawlingObserverAPI_service || true
+            docker rm CrawlingObserverAPI_service || true
+            docker run -d --name CrawlingObserverAPI_service docker:CrawlingObserverAPI_service
           EOF
