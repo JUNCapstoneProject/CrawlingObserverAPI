@@ -1,0 +1,117 @@
+{
+  "YahooFinance": {
+    "base_url": "https://finance.yahoo.com",
+    "url": "https://finance.yahoo.com/topic/stock-market-news/",
+    "main_container_selectors": [
+      "div.container.yf-1jvnfga",
+      "section.container.sz-small.stream.vertical"
+    ],
+    "content_container_selectors": [
+      "div.article-wrap.no-bb"
+    ],
+    "selectors": {
+      "main": {
+        "href": [
+          "a.titles-link",
+          "a.subtle-link"
+        ],
+        "title": [
+          "a.titles-link",
+          "a.subtle-link"
+        ],
+        "organization": [
+          "div.publishing"
+        ]
+      },
+      "contents": {
+        "author": [
+          "div.byline-attr-author"
+        ],
+        "posted_at": [
+          "div.byline-attr-time-style time"
+        ],
+        "tag": [
+          "div.carousel-top a[data-testid='ticker-container'] .symbol"
+        ],
+        "content": [
+          "div.body-wrap p.yf-1090901"
+        ]
+      }
+    }
+  },
+  "InvestingNews": {
+    "base_url": "https://www.investing.com",
+    "url": "https://www.investing.com/news/stock-market-news",
+    "main_container_selectors": [
+      "div.news-analysis-v2_content__z0iLP"
+    ],
+    "content_container_selectors": [
+      "div.relative.flex.flex-col"
+    ],
+    "selectors": {
+      "main": {
+        "href": [
+          "a[data-test='article-title-link']"
+        ],
+        "title": [
+          "a[data-test='article-title-link']"
+        ],
+        "organization": [
+          "span[data-test='news-provider-name']"
+        ]
+      },
+      "contents": {
+        "author": [
+          "a[href*='/members/contributors']"
+        ],
+        "posted_at": [
+          "div.text-warren-gray-700 span"
+        ],
+        "tag": [
+          "div.ArticleRelatedInstrumentsView_container__CvTD1 a span"
+        ],
+        "content": [
+          "div.article_WYSIWYG__O0uhw p"
+        ]
+      }
+    }
+  },
+  "InvestingReports": {
+    "base_url": "https://www.investing.com",
+    "url": "https://www.investing.com/analysis",
+    "main_container_selectors": [
+      ".flex.w-full.flex-col .grid.grid-cols-1 .flex.flex-row.border-b .flex.w-full.flex-col.overflow-hidden",
+      "#__next div.min-w-0 div.mt-10.inline-block.w-full ul > li > article > div"
+    ],
+    "content_container_selectors": [
+      "div.min-w-0"
+    ],
+    "selectors": {
+      "main": {
+        "href": [
+          "a.text-inv-blue-500.font-semibold",
+          "a.block.text-base.font-bold"
+        ],
+        "title": [
+          "a.text-inv-blue-500.font-semibold",
+          "a.block.text-base.font-bold"
+        ],
+        "author": [
+          "a.text-inv-blue-500.truncate",
+          "a[data-test='article-provider-link']"
+        ],
+        "posted_at": [
+          "time[data-test='article-publish-date']"
+        ]
+      },
+      "contents": {
+        "tag": [
+          "div[data-test='related-instruments-section'] a span"
+        ],
+        "content": [
+          "div.article_container p"
+        ]
+      }
+    }
+  }
+}

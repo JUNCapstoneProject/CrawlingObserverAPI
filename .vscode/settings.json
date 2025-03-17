@@ -1,0 +1,19 @@
+{
+    // Windows에서 사용할 기본 터미널 프로파일을 PowerShell로 지정
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+  
+    // 터미널 프로파일 정의
+    "terminal.integrated.profiles.windows": {
+      "PowerShell": {
+        // PC 환경에 맞게 PowerShell 실행 경로 지정
+        "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        // 새 터미널 열 때마다 아래 명령어를 실행 (-NoExit: 종료하지 않고 유지)
+        "args": [
+          "-NoExit",
+          // 특정 실행 정책에 막히지 않도록 일시적으로 스크립트 허용
+          "Set-ExecutionPolicy RemoteSigned -Scope Process; poetry env activate"
+        ]
+      }
+    }
+  }
+  
