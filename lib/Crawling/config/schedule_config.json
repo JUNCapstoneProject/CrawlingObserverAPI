@@ -1,0 +1,48 @@
+{
+  "_comment":{
+    "form": ["start_time", "end_time", "interval(minute)"]
+  },
+    "YahooFinance": {
+      "Monday": [9, 18, 60],
+      "Tuesday": [9, 18, 60],
+      "Wednesday": [9, 18, 60],
+      "Thursday": [9, 18, 60],
+      "Friday": [9, 18, 60]
+    },
+    "InvestingNews": {
+      "Monday": [9, 18, 60],
+      "Tuesday": [9, 18, 60],
+      "Wednesday": [9, 18, 60],
+      "Thursday": [9, 18, 60],
+      "Friday": [9, 18, 60]
+    },
+    "InvestingReports": {
+      "Monday": [9, 18, 60],
+      "Tuesday": [9, 18, 60],
+      "Wednesday": [9, 18, 60],
+      "Thursday": [9, 18, 60],
+      "Friday": [9, 18, 60]
+    },
+    "Fred": {
+      "Monday": [9, 18, 60],
+      "Tuesday": [9, 18, 60],
+      "Wednesday": [9, 18, 60],
+      "Thursday": [9, 18, 60],
+      "Friday": [9, 18, 60]
+    },
+    "YFinance": {
+      "Monday": [9, 18, 60],
+      "Tuesday": [9, 18, 60],
+      "Wednesday": [9, 18, 60],
+      "Thursday": [9, 18, 60],
+      "Friday": [9, 18, 60]
+    },
+    "YFinanceStock": {
+      "Monday": [9, 18, 1],
+      "Tuesday": [9, 18, 1],
+      "Wednesday": [9, 18, 1],
+      "Thursday": [9, 18, 1],
+      "Friday": [9, 18, 1]
+    }
+  }
+  
