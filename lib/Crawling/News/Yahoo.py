@@ -1,6 +1,6 @@
 from ..Interfaces.CrawlerUsingRequest import CrawlerUsingRequest
 
-class YahooCrawler(CrawlerUsingRequest):
+class YahooNewsCrawler(CrawlerUsingRequest):
     def __init__(self, name, config):
         super().__init__(name, config)
         self.tag = "YahooNews"

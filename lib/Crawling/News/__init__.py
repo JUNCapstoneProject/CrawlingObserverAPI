@@ -1,5 +1,5 @@
-from .Yahoo import YahooCrawler
-from .Investing import InvestingCrawler
+from .Yahoo import YahooNewsCrawler
+from .Investing import InvestingNewsCrawler
 from ..config.LoadConfig import load_config
 from concurrent.futures import ThreadPoolExecutor
 
@@ -8,8 +8,8 @@ def run():
 
     # 설정 정보를 매핑하여 관리
     crawler_configs = {
-        "YahooFinance": YahooCrawler,
-        "InvestingNews": InvestingCrawler
+        "YahooFinance": YahooNewsCrawler,
+        "InvestingNews": InvestingNewsCrawler
     }
 
     # 크롤러 인스턴스 생성

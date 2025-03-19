@@ -6,7 +6,7 @@ import cloudscraper
 import datetime
 import re
 
-class InvestingCrawler(CrawlerUsingRequest):
+class InvestingNewsCrawler(CrawlerUsingRequest):
 
     def __init__(self, name, config):
         super().__init__(name, config)

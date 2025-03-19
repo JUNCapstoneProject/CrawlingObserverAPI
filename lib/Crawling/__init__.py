@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lib.Crawling.News import run as run_news
 from lib.Crawling.Reports import run as run_reports
 from lib.Crawling.Financial import run as run_financial
-# from lib.Crawling.Financial import run as run_stock
+from lib.Crawling.Stock import run as run_stock
 
 def run():
     """크롤링 실행 (스레드 풀)"""
@@ -19,7 +19,7 @@ def run():
         futures.append(executor.submit(run_financial))
         
         # 주식 데이터 크롤링 실행 (주석 해제 시 가능)
-        # futures.append(executor.submit(run_stock))
+        futures.append(executor.submit(run_stock))
 
         # 모든 크롤링 작업 완료 대기
         for future in futures:

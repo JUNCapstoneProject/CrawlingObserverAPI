@@ -1,4 +1,4 @@
-from .Investiong_report import InvestingReportCrawler
+from .Investing_report import InvestingReportCrawler
 from ..config.LoadConfig import load_config
 from concurrent.futures import ThreadPoolExecutor
 

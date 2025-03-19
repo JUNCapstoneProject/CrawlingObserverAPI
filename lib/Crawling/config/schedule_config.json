@@ -36,6 +36,13 @@
       "Wednesday": [9, 18, 60],
       "Thursday": [9, 18, 60],
       "Friday": [9, 18, 60]
+    },
+    "YFinanceStock": {
+      "Monday": [9, 18, 1],
+      "Tuesday": [9, 18, 1],
+      "Wednesday": [9, 18, 1],
+      "Thursday": [9, 18, 1],
+      "Friday": [9, 18, 1]
     }
   }
   

@@ -62,7 +62,7 @@ class CrawlerInterface(ABC):
 
                         try:
                             df = data["df"]  # DataFrame
-                            tag = data.get("tag", "unknown")  # 태그 (없으면 "unknown" 기본값)
+                            tag = data.get("tag", None)  # 태그 (없으면 None)
 
                             # ✅ DataFrame이 정상적으로 넘어왔는지 확인
                             if df is None:
@@ -73,6 +73,8 @@ class CrawlerInterface(ABC):
                                 print(f"[ERROR] df가 DataFrame이 아닙니다! type: {type(df)}, 태그: {tag}, 인덱스: {idx}")
                                 continue
 
+                            
+                                
                             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                             filename = f"{temp_dir}/crawled_data_{timestamp}_{tag}_{idx}_{uuid4().hex[:8]}.csv"
 
@@ -81,7 +83,7 @@ class CrawlerInterface(ABC):
                             print(f"✔ 크롤링 데이터 저장 완료: {filename}")
 
                         except Exception as e:
-                            print(f"   [ERROR] 파일 저장 실패! (태그: {tag}, 인덱스: {idx})")
+                            # print(f"   [ERROR] 파일 저장 실패! (태그: {tag}, 인덱스: {idx})")
                             print(f"   ▶ 예외 메시지: {e}")
                 else:
                     print("[WARNING] 크롤링 결과 없음! `crawl()`에서 반환된 데이터가 없습니다.")

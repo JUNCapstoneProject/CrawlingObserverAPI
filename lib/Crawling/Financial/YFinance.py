@@ -9,13 +9,13 @@ class YFinanceCrawler(CrawlerInterface):
     def __init__(self, name):
         super().__init__(name)
         self.batch_size = 100
+        self.symbols = load_config("symbols_test.json")
 
     def crawl(self):
         """ yfinance에서 재무제표 데이터를 가져와 반환하는 함수 """
         try:
-            symbols = load_config("symbols_test.json")
-            total_symbols = len(symbols)
-            total_batches = (total_symbols + self.batch_size - 1) // self.batch_size  # 총 배치 수 계산
+            total_symbols = len(self.symbols)
+            # total_batches = (total_symbols + self.batch_size - 1) // self.batch_size  # 총 배치 수 계산
 
             financial_data = {
                 "Income Statement": [],
@@ -24,7 +24,7 @@ class YFinanceCrawler(CrawlerInterface):
             }
 
             for batch_number, start_idx in enumerate(range(0, total_symbols, self.batch_size), start=1):
-                batch = symbols[start_idx:start_idx + self.batch_size]  # 100개씩 나누기
+                batch = self.symbols[start_idx:start_idx + self.batch_size]  # 100개씩 나누기
                 # print(f"⏳ Processing batch {batch_number}/{total_batches} ({len(batch)} symbols)")
 
                 try:

@@ -17,7 +17,10 @@ class FredCrawler(CrawlerInterface):
             "Federal Funds Rate": "FEDFUNDS",
             "2-Year Treasury Yield": "DGS2",
             "Trade Balance": "BOPGSTB",
-            "Producer Price Index (PPI)": "PCUOMFGOMFG",
+            "Producer Price Index (PPI)": "PPIACO",
+            "PPI - Vehicle": "PCU336110336110",
+            "PPI - Electric": "PCU335999335999",
+            # "Purchasing Managers' Index (PMI)": "PMI", 
             "Personal Consumption Expenditures (PCE)": "PCE",
             "Consumer Confidence Index (CCI)": "UMCSENT",
         }
