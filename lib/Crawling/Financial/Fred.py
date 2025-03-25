@@ -7,7 +7,6 @@ class FredCrawler(CrawlerInterface):
         super().__init__(name)
         self.key = api_key
         self.fred = Fred(api_key=self.key)
-
         # 가져올 FRED 데이터 목록 (지표명 : FRED Series ID)
         self.series_dict = {
             "Nominal GDP": "GDP",
@@ -24,33 +23,53 @@ class FredCrawler(CrawlerInterface):
             "Personal Consumption Expenditures (PCE)": "PCE",
             "Consumer Confidence Index (CCI)": "UMCSENT",
         }
+        self.tag = "macroeconomics"
 
     def crawl(self):
         """FRED 데이터를 가져와서 pandas DataFrame으로 출력"""
         macro_data = {}
+        status_code = 200
+        fail_messages = []
 
         for name, series_id in self.series_dict.items():
             try:
                 data = self.fred.get_series(series_id)
                 macro_data[name] = data
             except Exception as e:
-                print(f"⚠️ Error fetching {name} ({series_id}): {e}")
+                msg = f"{name}({series_id}) - {str(e)}"
+                print(f"⚠️ {msg}")
+                fail_messages.append(msg)
+                status_code = 500
 
-        # DataFrame 변환
-        macro_df = pd.DataFrame(macro_data)
-        macro_df.index.name = "Date"
+        # 공통 로그 반환
+        log_data = {
+            "crawling_type": self.tag,
+            "status_code": status_code
+        }
 
-        # 🔥 최근 값만 가져오기: NaN이 아닌 가장 최근 데이터 선택
-        macro_df = macro_df.dropna(how="all")  # 모든 컬럼이 NaN인 행 제거
-        macro_df = macro_df.ffill()  # 결측값을 가장 가까운 이전 값으로 채움
+        if status_code == 500:
+            return {
+                "tag": self.tag,
+                "log": log_data,
+                "fail_log": {
+                    "err_message": "\n".join(fail_messages)
+                }
+            }
 
-        # df.to_csv("fred_macro_data.csv")
-        # print("✅ 데이터 저장 완료: `fred_macro_data.csv`")
+        # 성공 시
+        df = pd.DataFrame(macro_data).dropna(how="all").ffill()
+        latest_date = df.index[-1]
+        latest_data = df.loc[latest_date]
 
-        # # 터미널 출력
-        # print("\nFRED 거시경제 데이터 (최근 5개)")
-        # print(df.tail())  # 최근 5개 행만 출력
+        macro_rows = pd.DataFrame([{
+            "index_name": k,
+            "country": "US",
+            "index_value": str(v),
+            "posted_at": latest_date.to_pydatetime()
+        } for k, v in latest_data.items()])
 
-        print(f"{self.__class__.__name__}: 데이터 수집 완료")  
-        
-        return {"df": macro_df, "tag": "macro"}
+        return {
+            "tag": self.tag,
+            "log": log_data,
+            "df": macro_rows
+        }

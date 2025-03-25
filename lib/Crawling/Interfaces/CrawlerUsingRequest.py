@@ -12,17 +12,10 @@ class CrawlerUsingRequest(CrawlerInterface):
         self.tag = None
         self.config = selector_config
         self.max_articles = 2 # 크롤링할 뉴스 수
-        self.max_retries = 100  # 요청 재시도 횟수
-
-    # ***테스트용
-    def save_data(self, articles):
-        """뉴스 데이터를 news_data.json에 저장"""
-        save_to_json(articles, "lib/Crawling/data/news_data.json", append=True)
-        print(f"{len(articles)}개의 뉴스 데이터를 news_data.json에 저장 완료")
+        self.max_retries = 30  # 요청 재시도 횟수
 
     # 사이트 보안 방식에 따라 자식 클래스에서 오버라이드
     def fetch_page(self, url=None):
-        """페이지를 가져오는 메서드 (자식 클래스에서 오버라이드 가능)"""
         if url is None:
             url = self.config["url"]
 
@@ -31,36 +24,74 @@ class CrawlerUsingRequest(CrawlerInterface):
             try:
                 response = requests.get(url, headers=HEADERS, timeout=20)
                 response.raise_for_status()
-                return BeautifulSoup(response.text, "html.parser")
-            
-            except requests.exceptions.RequestException as e:
-                print(f"Error fetching {url}: {e}")
+                return {
+                    "soup": BeautifulSoup(response.text, "html.parser"),
+                    "status_code": response.status_code,
+                    "url": url
+                }
 
-            retries += 1
-            if retries < self.max_retries:
-                print("Retry at intervals...")
-                random_delay()
-                
-        return None
-    
+            except requests.exceptions.RequestException as e:
+                print(f"[fetch_page] 요청 실패: {e}")
+                retries += 1
+                if retries < self.max_retries:
+                    print("Retrying...")
+                    random_delay()
+
+        return {
+            "soup": None,
+            "status_code": 500,
+            "url": url
+        }
+        
     def crawl(self):
         """뉴스 리스트 페이지에서 기사 정보 가져오기"""
         # print(f"🔍 {self.__class__.__name__} 크롤링 시작")
+        fetch_result = self.fetch_page()
+        soup = fetch_result["soup"]
+        status_code = fetch_result["status_code"]
+        target_url = fetch_result["url"]
 
-        soup = self.fetch_page()
-        if soup:
+        if not soup:
+            return {
+                "tag": self.tag,
+                "log": {
+                    "crawling_type": self.tag,
+                    "status_code": status_code,
+                    "target_url": target_url
+                },
+                "fail_log": {
+                    "err_message": "HTML 파싱 실패 또는 None 반환"
+                }
+            }
+
+        try:
             articles = self.crawl_main(soup)
-            print(f"{self.__class__.__name__}: {len(articles)}개의 기사 크롤링 완료")
+            if not articles:
+                raise Exception("기사 추출 실패 (crawl_main 결과 없음)")
 
-            # # ***나중에 분배자로 바꿀 것***
-            # self.save_data(articles)
+            df = pd.DataFrame(articles)
+            return {
+                "tag": self.tag,
+                "log": {
+                    "crawling_type": self.tag,
+                    "status_code": status_code,
+                    "target_url": target_url
+                },
+                "df": df
+            }
 
-            articles_df = pd.DataFrame(articles)
-
-            return {"df": articles_df, "tag": self.tag}
-        else:
-            print("크롤링 실패")
-            return []    
+        except Exception as e:
+            return {
+                "tag": self.tag,
+                "log": {
+                    "crawling_type": self.tag,
+                    "status_code": 500,
+                    "target_url": target_url
+                },
+                "fail_log": {
+                    "err_message": str(e)
+                }
+            } 
     
     def crawl_main(self, soup):
         # print(f"🔍 {self.__class__.__name__} 메인페이지 크롤링 시작")
@@ -71,8 +102,8 @@ class CrawlerUsingRequest(CrawlerInterface):
         # print(containers)
 
         if not containers:
-            print("🚨 [ERROR] 메인 컨테이너를 찾을 수 없음! 선택자 확인 필요")
-            return []
+            print("[ERROR] 메인 컨테이너를 찾을 수 없음! 선택자 확인 필요")
+            return None
 
         for article in containers:
             if len(articles) >= self.max_articles:
@@ -105,7 +136,8 @@ class CrawlerUsingRequest(CrawlerInterface):
 
     def crawl_content(self, url):
         """기사 개별 페이지에서 본문 및 추가 정보 크롤링"""
-        article_soup = self.fetch_page(url)
+        fetch_result = self.fetch_page(url)
+        article_soup = fetch_result["soup"]
 
         if not article_soup:
             return None

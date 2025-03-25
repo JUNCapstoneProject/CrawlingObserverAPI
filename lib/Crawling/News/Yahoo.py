@@ -3,7 +3,7 @@ from ..Interfaces.CrawlerUsingRequest import CrawlerUsingRequest
 class YahooNewsCrawler(CrawlerUsingRequest):
     def __init__(self, name, config):
         super().__init__(name, config)
-        self.tag = "YahooNews"
+        self.tag = "news"
     
     """ 오버라이딩 코드들 """
     
