@@ -24,7 +24,7 @@ class IncomeStatement(Base):
     cost_of_revenue = Column(DECIMAL(18, 2), nullable=False)
     sgna = Column(DECIMAL(18, 2), nullable=False)
     operating_income = Column(DECIMAL(18, 2), nullable=False)
-    other_non_operating_income = Column(DECIMAL(18, 2), nullable=False)
+    other_non_operating_income_expenses = Column(DECIMAL(18, 2), nullable=False)
     reconciled_depreciation = Column(DECIMAL(18, 2), nullable=False)
     ebitda = Column(DECIMAL(18, 2), nullable=False)
 
@@ -34,25 +34,29 @@ class BalanceSheet(Base):
     __tablename__ = "balance_sheet"
 
     crawling_id = Column(VARCHAR(36), ForeignKey("crawling_logs.crawling_id"), primary_key=True, nullable=False)
+    
     current_assets = Column(DECIMAL(18, 2), nullable=False)
     current_liabilities = Column(DECIMAL(18, 2), nullable=False)
     cash_and_cash_equivalents = Column(DECIMAL(18, 2), nullable=False)
     accounts_receivable = Column(DECIMAL(18, 2), nullable=False)
     inventory = Column(DECIMAL(18, 2), nullable=False)
     cash_cash_equivalents_and_short_term_investments = Column(DECIMAL(18, 2), nullable=False)
-    cash_equivalents = Column(DECIMAL(18, 2), nullable=False)
-    cash_financial = Column(DECIMAL(18, 2), nullable=False)
-    other_short_term_investments = Column(DECIMAL(18, 2), nullable=False)
+
+    # ✅ 이 아래는 종종 누락되므로 nullable=True 추천
+    cash_equivalents = Column(DECIMAL(18, 2), nullable=True)
+    cash_financial = Column(DECIMAL(18, 2), nullable=True)
+    other_short_term_investments = Column(DECIMAL(18, 2), nullable=True)
+
     stockholders_equity = Column(DECIMAL(18, 2), nullable=False)
     total_assets = Column(DECIMAL(18, 2), nullable=False)
     retained_earnings = Column(DECIMAL(18, 2), nullable=False)
 
 
-# 📘 cash_flow 테이블
 class CashFlow(Base):
     __tablename__ = "cash_flow"
 
     crawling_id = Column(VARCHAR(36), ForeignKey("crawling_logs.crawling_id"), primary_key=True, nullable=False)
+
     operating_cash_flow = Column(DECIMAL(18, 2), nullable=False)
-    capital_expenditure = Column(DECIMAL(18, 2), nullable=False)
+    capital_expenditure = Column(DECIMAL(18, 2), nullable=True)  # ✅ 종종 누락됨
     investing_cash_flow = Column(DECIMAL(18, 2), nullable=False)

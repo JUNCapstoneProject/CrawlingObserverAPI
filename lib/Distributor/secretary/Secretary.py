@@ -33,8 +33,10 @@ class Secretary:
         from sqlalchemy.exc import SQLAlchemyError
 
         try:
+            from uuid import uuid4
             log = result.get("log", {})
             crawling_log = CrawlingLog(
+                crawling_id=str(uuid4()),
                 crawling_type=log.get("crawling_type"),
                 status_code=log.get("status_code"),
                 target_url=log.get("target_url")

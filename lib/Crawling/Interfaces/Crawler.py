@@ -1,14 +1,14 @@
 from abc import ABC, abstractmethod
 import time
 import datetime
-import traceback
-import pandas as pd
 import os
 import json
+import pandas as pd
 import numpy as np
 from uuid import uuid4
 
 from ..config.LoadConfig import load_config
+
 
 class CrawlerInterface(ABC):
     """ 모든 크롤러의 최상위 인터페이스 (공통 스케줄 포함) """
@@ -52,6 +52,12 @@ class CrawlerInterface(ABC):
                 result = self.crawl()
 
                 if result:
+                    from ...Distributor.secretary.Secretary import Secretary
+                    from ...Distributor.secretary.session import SessionLocal
+
+                    db = SessionLocal()
+                    secretary = Secretary(db)
+
                     try:
                         for result_item in result:
                             df = result_item.get("df")
@@ -67,18 +73,19 @@ class CrawlerInterface(ABC):
                                         row["posted_at"] = pd.to_datetime(row["posted_at"])
                             # 없거나 실패한 경우는 그대로 둠
 
-                        tag = result[0].get("tag", "unknown") if result else "unknown"
-                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                        filename = f"{temp_dir}/crawled_result_{timestamp}_{tag}_{uuid4().hex[:8]}.json"
+                        secretary.distribute(result)
 
-                        with open(filename, "w", encoding="utf-8") as f:
-                            json.dump(result, f, ensure_ascii=False, indent=2, default=str)
+                        # tag = result[0].get("tag", "unknown") if result else "unknown"
+                        # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        # filename = f"{temp_dir}/crawled_result_{timestamp}_{tag}_{uuid4().hex[:8]}.json"
 
-                        print(f"{self.__class__.__name__}: 전체 크롤링 결과 저장 완료: {filename}")
+                        # with open(filename, "w", encoding="utf-8") as f:
+                        #     json.dump(result, f, ensure_ascii=False, indent=2, default=str)
 
-                    except Exception as e:
-                        print("▶ Traceback:")
-                        self.save_traceback_to_file("unknown", -1, e)
+                        # print(f"{self.__class__.__name__}: 전체 크롤링 결과 저장 완료: {filename}")
+                        
+                    finally:
+                        db.close()
 
                 else:
                     print("[WARNING] 크롤링 결과 없음! `crawl()`에서 반환된 데이터가 없습니다.")
@@ -93,21 +100,7 @@ class CrawlerInterface(ABC):
             time.sleep(sleep_time)
 
 
-    def save_traceback_to_file(self, tag: str, idx: int, e: Exception):
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        log_dir = os.path.join(base_dir, "Logs")
-        os.makedirs(log_dir, exist_ok=True)
 
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"traceback_{tag}_{idx}_{timestamp}.log"
-        filepath = os.path.join(log_dir, filename)
-
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(f"[{timestamp}] 예외 발생 (tag: {tag}, index: {idx})\n")
-            f.write(f"Error: {str(e)}\n\n")
-            f.write(traceback.format_exc())  # ⬅ 핵심
-
-        print(f"예외 트레이스백 로그 저장됨: {filepath}")
 
     @abstractmethod
     def crawl(self):

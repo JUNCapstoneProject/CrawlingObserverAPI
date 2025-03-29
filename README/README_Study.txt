@@ -32,5 +32,13 @@ traceback 예외처리 구현
 Secretary(DB저장 코드)추가
 model 및 handler를 이용하여 구현
 
+25.03.30.
+크롤링 대상(선택자) 함수 구분에 핸들러 방식 적용
+DB 기본키 오류 -> 복합키로 변경하여 보장
+traceback 예외처리 방식을 전체 코드를 대상으로 변경
+DB 저장시 rollback 오류 -> null값 가능성이 있는 데이터의 속성 변경
+rollback 오류2 (외래키 제약조건) -> financial 데이터 insert시 flush로 바뀐 상태를 불러오지 않아서 외래키를 불러오지 못했음. 수정
+DB 저장 코드 테스트 완료
+
 예정
 DB 및 소켓 통신

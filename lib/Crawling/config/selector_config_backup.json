@@ -78,9 +78,10 @@
   },
   "InvestingReports": {
     "base_url": "https://www.investing.com",
-    "url": "https://www.investing.com/analysis/stock-markets",
+    "url": "https://www.investing.com/analysis",
     "main_container_selectors": [
-      "#contentSection > article > div.textDiv"
+      ".flex.w-full.flex-col .grid.grid-cols-1 .flex.flex-row.border-b .flex.w-full.flex-col.overflow-hidden",
+      "#__next div.min-w-0 div.mt-10.inline-block.w-full ul > li > article > div"
     ],
     "content_container_selectors": [
       "div.min-w-0"
@@ -88,14 +89,19 @@
     "selectors": {
       "main": {
         "href": [
-          "a.title"
+          "a.text-inv-blue-500.font-semibold",
+          "a.block.text-base.font-bold"
         ],
         "title": [
-          "a.title"
+          "a.text-inv-blue-500.font-semibold",
+          "a.block.text-base.font-bold"
         ],
         "author": [
-          "span.articleDetails a",
-          "span.articleDetails span"
+          "a.text-inv-blue-500.truncate",
+          "a[data-test='article-provider-link']"
+        ],
+        "posted_at": [
+          "time[data-test='article-publish-date']"
         ]
       },
       "contents": {
@@ -104,9 +110,6 @@
         ],
         "content": [
           "div.article_container p"
-        ],
-        "posted_at": [
-          "div.mx-0.mt-1 > div.mt-2.flex.flex-col.gap-2.text-xs > div > div > span"
         ]
       }
     }

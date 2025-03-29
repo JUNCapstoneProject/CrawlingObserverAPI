@@ -49,6 +49,7 @@ class YFinanceCrawler(CrawlerInterface):
                             df = stock.financials.T.reset_index().rename(columns={"index": "posted_at"})
                             df["Symbol"] = symbol
                             df["posted_at"] = pd.to_datetime(df["posted_at"])
+                            df["financial_type"] = "income_statement"
                             latest = df.sort_values("posted_at").iloc[[-1]]
                             results.append({
                                 "tag": "income_statement",
@@ -79,6 +80,7 @@ class YFinanceCrawler(CrawlerInterface):
                             df = stock.balance_sheet.T.reset_index().rename(columns={"index": "posted_at"})
                             df["Symbol"] = symbol
                             df["posted_at"] = pd.to_datetime(df["posted_at"])
+                            df["financial_type"] = "balance_sheet"
                             latest = df.sort_values("posted_at").iloc[[-1]]
                             results.append({
                                 "tag": "balance_sheet",
@@ -109,6 +111,7 @@ class YFinanceCrawler(CrawlerInterface):
                             df = stock.cashflow.T.reset_index().rename(columns={"index": "posted_at"})
                             df["Symbol"] = symbol
                             df["posted_at"] = pd.to_datetime(df["posted_at"])
+                            df["financial_type"] = "cash_flow"
                             latest = df.sort_values("posted_at").iloc[[-1]]
                             results.append({
                                 "tag": "cash_flow",

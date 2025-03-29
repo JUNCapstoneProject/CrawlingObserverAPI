@@ -75,7 +75,7 @@ class CrawlerUsingRequest(CrawlerInterface):
                 raise Exception("기사 추출 실패 (crawl_main 결과 없음)")
 
             for article in articles:
-                href = article.get("href")
+                href = self.get_absolute_url(article.get("href"))
 
                 if not href:
                     continue  # URL이 없으면 스킵
@@ -135,14 +135,14 @@ class CrawlerUsingRequest(CrawlerInterface):
 
             url = self.get_absolute_url(main_data.get("href"))
             if not url or url in seen_urls:
-                print("중복 링크 탐지")
+                # print("중복 링크 탐지")
                 continue
             seen_urls.add(url)
 
             # ✅ 개별 기사 추가 크롤링 실행
             article_content = self.crawl_content(url)
             if not article_content or not article_content.get("content"):
-                print("기사 내용 없음")
+                # print("기사 내용 없음")
                 continue
 
             # ✅ JSON에서 정의된 필드 기반으로 동적 데이터 생성
@@ -200,76 +200,6 @@ class CrawlerUsingRequest(CrawlerInterface):
                     print(f"[extract_fields] 핸들러 없음: {field}")
         return extracted_data
     
-    # def extract_fields(self, soup, section):
-    #     """JSON 설정을 기반으로 `extract_` 함수 동적 호출"""
-    #     extracted_data = {}
-    #     if section in self.config["selectors"]:
-    #         for field, selectors in self.config["selectors"][section].items():
-    #             extractor_func_name = f"extract_{field}"  # 예: extract_author, extract_content
-    #             extractor_func = getattr(self, extractor_func_name, None)
-
-    #             if callable(extractor_func):
-    #                 extracted_data[field] = extractor_func(soup, selectors)
-
-    #     return extracted_data
-
-    # def extract_href(self, soup, selectors):
-    #     """기사 링크 (href) 추출"""
-    #     for selector in selectors:
-    #         href_element = soup.select_one(selector)
-    #         if href_element:
-    #             return href_element["href"]
-    #     return None
-
-    # def extract_organization(self, soup, selectors):
-    #     """기사 출처 (organization) 추출"""
-    #     for selector in selectors:
-    #         organization_element = soup.select_one(selector)
-    #         if organization_element:
-    #             return organization_element.get_text(strip=True)
-    #     return None
-
-    # def extract_author(self, soup, selectors):
-    #     """기사 작성자 (author) 추출"""
-    #     for selector in selectors:
-    #         author_element = soup.select_one(selector)
-    #         if author_element:
-    #             return author_element.get_text(strip=True)
-    #     return "Unknown"
-
-    # def extract_title(self, soup, selectors):
-    #     """기사 제목 (title) 추출"""
-    #     for selector in selectors:
-    #         title_element = soup.select_one(selector)
-    #         if title_element:
-    #             return title_element.get_text(strip=True)
-    #     return None
-
-    # def extract_posted_at(self, soup, selectors):
-    #     """기사 날짜 (posted_at) 추출"""
-    #     for selector in selectors:
-    #         posted_at_element = soup.select_one(selector)
-    #         if posted_at_element and posted_at_element.has_attr("datetime"):
-    #             return posted_at_element["datetime"].split(" ")[0]
-    #     return None
-
-    # def extract_content(self, soup, selectors):
-    #     """기사 본문 (content) 추출"""
-    #     content_texts = []
-    #     for selector in selectors:
-    #         content_elements = soup.select(selector)
-    #         if content_elements:
-    #             content_texts.extend([e.get_text(strip=True) for e in content_elements])
-    #     return " ".join(content_texts).strip() if content_texts else None
-
-    # def extract_tag(self, soup, selectors):
-    #     """관련 주식 (tag) 추출"""
-    #     tag = []
-    #     for selector in selectors:
-    #         tag_elements = soup.select(selector)
-    #         tag.extend([ticker.get_text(strip=True) for ticker in tag_elements])
-    #     return ",".join(tag) if tag else None
-
     def get_absolute_url(self, url):
         """절대 URL 변환"""
         return url if url.startswith("http") else self.config["base_url"] + url

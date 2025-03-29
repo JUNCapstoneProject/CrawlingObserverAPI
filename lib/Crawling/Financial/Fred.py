@@ -24,7 +24,7 @@ class FredCrawler(CrawlerInterface):
             "Personal Consumption Expenditures (PCE)": "PCE",
             "Consumer Confidence Index (CCI)": "UMCSENT",
         }
-        self.tag = "macroeconomics"
+        self.tag = "macro"
 
     def crawl(self):
         """FRED 데이터를 지표별로 분리하여 최신 값만 반환"""
