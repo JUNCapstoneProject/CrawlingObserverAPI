@@ -1,8 +1,8 @@
 import yfinance as yf
 from ..Interfaces.Crawler import CrawlerInterface
 from ..config.LoadConfig import load_config
+
 import time
-import pandas as pd
 
 class YFinanceStockCrawler(CrawlerInterface):
 
@@ -13,62 +13,78 @@ class YFinanceStockCrawler(CrawlerInterface):
         self.tag = "stock"
 
     def crawl(self):
-        """ yfinance에서 주가 데이터를 가져와 반환하는 함수 """
+        """ yfinance에서 종목별 주가 데이터를 분리해서 반환하는 함수 """
+        results = []
+
         try:
             total_symbols = len(self.symbols)
-            stock_data = []  # 결과 저장 리스트
-            status_code = 200
 
             for batch_number, start_idx in enumerate(range(0, total_symbols, self.batch_size), start=1):
-                batch = self.symbols[start_idx:start_idx + self.batch_size]  # 배치 단위로 나누기
-                
+                batch = self.symbols[start_idx:start_idx + self.batch_size]
+
                 try:
-                    tickers = yf.Tickers(" ".join(batch))  # 여러 종목 데이터 가져오기
+                    tickers = yf.Tickers(" ".join(batch))
 
                     for symbol in batch:
-                        stock = tickers.tickers.get(symbol)
-                        
-                        if not stock:
-                            continue
+                        try:
+                            stock = tickers.tickers.get(symbol)
+                            if not stock:
+                                raise ValueError("해당 종목을 찾을 수 없음")
 
-                        # 최근 1개월 (1mo) 주가 데이터 가져오기
-                        df = stock.history(period="1mo")[['Open', 'High', 'Low', 'Close', 'Volume']]
-                        if df.empty:
-                            continue
-                        
-                        df = df.reset_index()
-                        df["Symbol"] = symbol  # 종목 코드 추가
-                        stock_data.append(df)
+                            df = stock.history(period="1d", interval="1m", prepost=True)[['Open', 'High', 'Low', 'Close', 'Volume']]
+                            if df.empty:
+                                raise ValueError("Empty DataFrame (데이터 없음)")
 
-                    time.sleep(2)  # API Rate Limit 방지
+                            df = df.tail(1).reset_index()
+                            df = df.rename(columns={"Datetime": "posted_at"})
+                            df["Symbol"] = symbol
 
-                except Exception as e:
-                    print(f"Error in batch {batch_number}: {e}")
-                    status_code = 500
+                            results.append({
+                                "tag": self.tag,
+                                "log": {
+                                    "crawling_type": self.tag,
+                                    "status_code": 200
+                                },
+                                "df": df
+                            })
 
-            # 모든 데이터를 하나의 DataFrame으로 병합
-            stock_prices_df = pd.concat(stock_data, axis=0) if stock_data else pd.DataFrame()
+                        except Exception as symbol_error:
+                            results.append({
+                                "tag": self.tag,
+                                "log": {
+                                    "crawling_type": self.tag,
+                                    "status_code": 500
+                                },
+                                "fail_log": {
+                                    "err_message": str(symbol_error)
+                                }
+                            })
 
-            # print(f"{self.__class__.__name__}: 주가 데이터 수집 완료")
-            
-            return {
+                    time.sleep(2)
+
+                except Exception as batch_error:
+                    for symbol in batch:
+                        results.append({
+                            "tag": self.tag,
+                            "log": {
+                                "crawling_type": self.tag,
+                                "status_code": 500
+                            },
+                            "fail_log": {
+                                "err_message": f"배치 오류: {str(batch_error)}"
+                            }
+                        })
+
+        except Exception as global_error:
+            return [{
                 "tag": self.tag,
                 "log": {
                     "crawling_type": self.tag,
-                    "status_code": status_code,
-                },
-                "df": stock_prices_df
-            }
-
-        except Exception as e:
-            # print(f"❌ YFinanceStockCrawler: 전체 크롤링 과정에서 오류 발생 - {e}")
-            return {
-                "tag": self.tag,
-                "log": {
-                    "crawling_type": self.tag,
-                    "status_code": 500,
+                    "status_code": 500
                 },
                 "fail_log": {
-                    "err_message": str(e)
+                    "err_message": f"전역 오류: {str(global_error)}"
                 }
-            }
+            }]
+
+        return results

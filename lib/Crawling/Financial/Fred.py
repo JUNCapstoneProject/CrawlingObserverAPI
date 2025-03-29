@@ -1,4 +1,5 @@
 from ..Interfaces.Crawler import CrawlerInterface
+
 from fredapi import Fred
 import pandas as pd
 
@@ -26,50 +27,51 @@ class FredCrawler(CrawlerInterface):
         self.tag = "macroeconomics"
 
     def crawl(self):
-        """FRED 데이터를 가져와서 pandas DataFrame으로 출력"""
-        macro_data = {}
-        status_code = 200
-        fail_messages = []
+        """FRED 데이터를 지표별로 분리하여 최신 값만 반환"""
+        results = []
 
         for name, series_id in self.series_dict.items():
             try:
-                data = self.fred.get_series(series_id)
-                macro_data[name] = data
-            except Exception as e:
-                msg = f"{name}({series_id}) - {str(e)}"
-                print(f"⚠️ {msg}")
-                fail_messages.append(msg)
-                status_code = 500
+                # 시계열 데이터 가져오기
+                data_series = self.fred.get_series(series_id)
+                data_series = data_series.dropna().ffill()
+                data_series.index = pd.to_datetime(data_series.index)
 
-        # 공통 로그 반환
-        log_data = {
-            "crawling_type": self.tag,
-            "status_code": status_code
-        }
+                if data_series.empty:
+                    raise ValueError("해당 시리즈 데이터 없음")
 
-        if status_code == 500:
-            return {
-                "tag": self.tag,
-                "log": log_data,
-                "fail_log": {
-                    "err_message": "\n".join(fail_messages)
+                # 최신 데이터 1건만 추출
+                latest_date = data_series.index[-1]
+                latest_value = data_series.iloc[-1]
+
+                row = {
+                    "index_name": name,
+                    "country": "US",
+                    "index_value": str(latest_value),
+                    "posted_at": latest_date.to_pydatetime()
                 }
-            }
 
-        # 성공 시
-        df = pd.DataFrame(macro_data).dropna(how="all").ffill()
-        latest_date = df.index[-1]
-        latest_data = df.loc[latest_date]
+                results.append({
+                    "tag": self.tag,
+                    "log": {
+                        "crawling_type": self.tag,
+                        "status_code": 200
+                    },
+                    "df": pd.DataFrame([row])
+                })
 
-        macro_rows = pd.DataFrame([{
-            "index_name": k,
-            "country": "US",
-            "index_value": str(v),
-            "posted_at": latest_date.to_pydatetime()
-        } for k, v in latest_data.items()])
+            except Exception as e:
+                results.append({
+                    "tag": self.tag,
+                    "log": {
+                        "crawling_type": self.tag,
+                        "status_code": 500
+                    },
+                    "fail_log": {
+                        "index_name": name,
+                        "err_message": f"{series_id} - {str(e)}"
+                    }
+                })
 
-        return {
-            "tag": self.tag,
-            "log": log_data,
-            "df": macro_rows
-        }
+        return results
+

@@ -7,6 +7,7 @@ import os
 import json
 import numpy as np
 from uuid import uuid4
+
 from ..config.LoadConfig import load_config
 
 class CrawlerInterface(ABC):
@@ -38,7 +39,6 @@ class CrawlerInterface(ABC):
         return True, 10 # 테스트용 임시
 
     def run(self):
-        """ 스케줄 확인 후 크롤링 실행 (JSON 저장 + 에러 traceback 출력) """
         print(f"DEBUG: {self.__class__.__name__}.run() 실행됨")
 
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # lib/Crawling/
@@ -52,29 +52,33 @@ class CrawlerInterface(ABC):
                 result = self.crawl()
 
                 if result:
-                    if isinstance(result, dict):
-                        result = [result]
+                    try:
+                        for result_item in result:
+                            df = result_item.get("df")
 
-                    for idx, result_item in enumerate(result):
-                        try:
-                            tag = result_item.get("tag", "unknown")
+                            if isinstance(df, pd.DataFrame):
+                                if "posted_at" in df.columns:
+                                    df["posted_at"] = pd.to_datetime(df["posted_at"])
+                                result_item["df"] = df.reset_index(drop=True).replace({np.nan: None}).to_dict(orient="records")
 
-                            if isinstance(result_item.get("df"), pd.DataFrame):
-                                result_item["df"] = result_item["df"].reset_index(drop=True).replace({np.nan: None}).to_dict(orient="records")
+                            elif isinstance(df, list):
+                                for row in df:
+                                    if "posted_at" in row:
+                                        row["posted_at"] = pd.to_datetime(row["posted_at"])
+                            # 없거나 실패한 경우는 그대로 둠
 
-                            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                            filename = f"{temp_dir}/crawled_result_{timestamp}_{tag}_{idx}_{uuid4().hex[:8]}.json"
+                        tag = result[0].get("tag", "unknown") if result else "unknown"
+                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        filename = f"{temp_dir}/crawled_result_{timestamp}_{tag}_{uuid4().hex[:8]}.json"
 
-                            with open(filename, "w", encoding="utf-8") as f:
-                                json.dump(result_item, f, ensure_ascii=False, indent=2, default=str)
+                        with open(filename, "w", encoding="utf-8") as f:
+                            json.dump(result, f, ensure_ascii=False, indent=2, default=str)
 
-                            print(f"{self.__class__.__name__}: 크롤링 결과 저장 완료: {filename}")
+                        print(f"{self.__class__.__name__}: 전체 크롤링 결과 저장 완료: {filename}")
 
-                        except Exception as e:
-                            # print(f"[ERROR] 크롤링 데이터 저장 중 예외 발생! 태그: {tag}, 인덱스: {idx}")
-                            # print("▶ 예외 메시지:", str(e))
-                            print("▶ Traceback:")
-                            self.save_traceback_to_file(tag, idx, e)
+                    except Exception as e:
+                        print("▶ Traceback:")
+                        self.save_traceback_to_file("unknown", -1, e)
 
                 else:
                     print("[WARNING] 크롤링 결과 없음! `crawl()`에서 반환된 데이터가 없습니다.")
@@ -87,6 +91,7 @@ class CrawlerInterface(ABC):
             minutes, seconds = divmod(sleep_time, 60)
             print(f"{self.__class__.__name__}: {minutes}분 {seconds}초 동안 대기...")
             time.sleep(sleep_time)
+
 
     def save_traceback_to_file(self, tag: str, idx: int, e: Exception):
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

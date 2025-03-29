@@ -1,5 +1,6 @@
 from ..Interfaces.Crawler import CrawlerInterface
 from ..config.LoadConfig import load_config
+
 import yfinance as yf
 import pandas as pd
 import time
@@ -13,66 +14,140 @@ class YFinanceCrawler(CrawlerInterface):
         self.tag = "financials"
 
     def crawl(self):
-        """ yfinance에서 재무제표 데이터를 가져와 반환하는 함수 """
-        try:
-            financial_data = {
-                "income_statement": [],
-                "balance_sheet": [],
-                "cash_flow": []
-            }
+        results = []
 
-            for start in range(0, len(self.symbols), self.batch_size):
-                batch = self.symbols[start:start + self.batch_size]
+        for start in range(0, len(self.symbols), self.batch_size):
+            batch = self.symbols[start:start + self.batch_size]
+
+            try:
                 tickers = yf.Tickers(" ".join(batch))
-
+            except Exception as e:
+                # tickers 객체 자체가 실패한 경우 → batch 전체 실패 처리
                 for symbol in batch:
+                    for tag in ["income_statement", "balance_sheet", "cash_flow"]:
+                        results.append({
+                            "tag": tag,
+                            "log": {
+                                "crawling_type": "financials",
+                                "status_code": 500
+                            },
+                            "fail_log": {
+                                "err_message": f"yf.Tickers 실패: {str(e)}"
+                            }
+                        })
+                continue  # 다음 배치로 넘어감
+
+            for symbol in batch:
+                try:
                     stock = tickers.tickers.get(symbol)
                     if not stock:
-                        continue
+                        raise ValueError("해당 symbol에 대한 데이터 없음")
 
+                    # 🔹 income_statement
                     try:
                         if not stock.financials.empty:
-                            financial_data["income_statement"].append(
-                                stock.financials.T.reset_index().assign(Symbol=symbol)
-                            )
+                            df = stock.financials.T.reset_index().rename(columns={"index": "posted_at"})
+                            df["Symbol"] = symbol
+                            df["posted_at"] = pd.to_datetime(df["posted_at"])
+                            latest = df.sort_values("posted_at").iloc[[-1]]
+                            results.append({
+                                "tag": "income_statement",
+                                "log": {
+                                    "crawling_type": "financials",
+                                    "status_code": 200
+                                },
+                                "df": latest.reset_index(drop=True)
+                            })
+                        else:
+                            raise ValueError("income_statement 데이터 없음")
+
+                    except Exception as e:
+                        results.append({
+                            "tag": "income_statement",
+                            "log": {
+                                "crawling_type": "financials",
+                                "status_code": 500
+                            },
+                            "fail_log": {
+                                "err_message": str(e)
+                            }
+                        })
+
+                    # 🔹 balance_sheet
+                    try:
                         if not stock.balance_sheet.empty:
-                            financial_data["balance_sheet"].append(
-                                stock.balance_sheet.T.reset_index().assign(Symbol=symbol)
-                            )
+                            df = stock.balance_sheet.T.reset_index().rename(columns={"index": "posted_at"})
+                            df["Symbol"] = symbol
+                            df["posted_at"] = pd.to_datetime(df["posted_at"])
+                            latest = df.sort_values("posted_at").iloc[[-1]]
+                            results.append({
+                                "tag": "balance_sheet",
+                                "log": {
+                                    "crawling_type": "financials",
+                                    "status_code": 200
+                                },
+                                "df": latest.reset_index(drop=True)
+                            })
+                        else:
+                            raise ValueError("balance_sheet 데이터 없음")
+
+                    except Exception as e:
+                        results.append({
+                            "tag": "balance_sheet",
+                            "log": {
+                                "crawling_type": "financials",
+                                "status_code": 500
+                            },
+                            "fail_log": {
+                                "err_message": str(e)
+                            }
+                        })
+
+                    # 🔹 cash_flow
+                    try:
                         if not stock.cashflow.empty:
-                            financial_data["cash_flow"].append(
-                                stock.cashflow.T.reset_index().assign(Symbol=symbol)
-                            )
-                    except Exception as inner_e:
-                        print(f"오류 발생 ({symbol}): {inner_e}")
+                            df = stock.cashflow.T.reset_index().rename(columns={"index": "posted_at"})
+                            df["Symbol"] = symbol
+                            df["posted_at"] = pd.to_datetime(df["posted_at"])
+                            latest = df.sort_values("posted_at").iloc[[-1]]
+                            results.append({
+                                "tag": "cash_flow",
+                                "log": {
+                                    "crawling_type": "financials",
+                                    "status_code": 200
+                                },
+                                "df": latest.reset_index(drop=True)
+                            })
+                        else:
+                            raise ValueError("cash_flow 데이터 없음")
 
-                time.sleep(2)
+                    except Exception as e:
+                        results.append({
+                            "tag": "cash_flow",
+                            "log": {
+                                "crawling_type": "financials",
+                                "status_code": 500
+                            },
+                            "fail_log": {
+                                "err_message": str(e)
+                            }
+                        })
 
-        except Exception as e:
-            # 전체 실패 시
-            return [{
-                "tag": self.tag,
-                "log": {
-                    "crawling_type": self.tag,
-                    "status_code": 500
-                },
-                "fail_log": {
-                    "err_message": str(e)
-                }
-            }]
+                except Exception as symbol_level_error:
+                    # 종목 자체가 불러와지지 않았거나 완전한 실패일 경우
+                    for tag in ["income_statement", "balance_sheet", "cash_flow"]:
+                        results.append({
+                            "tag": tag,
+                            "log": {
+                                "crawling_type": "financials",
+                                "status_code": 500
+                            },
+                            "fail_log": {
+                                "err_message": f"심볼 수준 실패: {str(symbol_level_error)}"
+                            }
+                        })
 
-        # 정상 수집 완료
-        results = []
-        for tag in ["income_statement", "balance_sheet", "cash_flow"]:
-            df_list = financial_data[tag]
-            df = pd.concat(df_list, axis=0) if df_list else pd.DataFrame()
-            results.append({
-                "tag": tag,
-                "log": {
-                    "crawling_type": self.tag,
-                    "status_code": 200
-                },
-                "df": df  # 이후 dispatcher에서 처리
-            })
+            time.sleep(2)
 
         return results
+

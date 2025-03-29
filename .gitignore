@@ -17,3 +17,5 @@ pyproject.toml
 
 **/Logs/
 **/Datas/
+
+**/.env

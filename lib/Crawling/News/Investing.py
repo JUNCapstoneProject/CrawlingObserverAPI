@@ -1,6 +1,7 @@
 from ..Interfaces.CrawlerUsingRequest import CrawlerUsingRequest
 from ..config.headers import HEADERS
 from ..utils.random_delay import random_delay
+
 from bs4 import BeautifulSoup
 import cloudscraper
 import datetime
@@ -12,8 +13,10 @@ class InvestingNewsCrawler(CrawlerUsingRequest):
         super().__init__(name, config)
         self.scraper = cloudscraper.create_scraper()
         self.tag = "news"
-        
-    """ 오버라이딩 코드들 """
+        self.custom_handlers = {
+            "organization": self.custom_extract_organization,
+            "posted_at": self.custom_extract_posted_at
+        }
 
     def fetch_page(self, url=None, max_retries=None):
         """Cloudflare 우회를 포함한 요청 함수. Dispatcher 연동을 위해 상태코드/URL 포함한 dict 반환."""
@@ -64,8 +67,10 @@ class InvestingNewsCrawler(CrawlerUsingRequest):
                 if time_tag:
                     containers.append(container)  # 시간 정보가 있는 경우만 추가
         return containers if containers else None
+    
 
-    def extract_organization(self, soup, selectors):
+
+    def custom_extract_organization(self, soup, selectors):
         """기사 출처 (퍼블리셔) 추출"""
         for selector in selectors:
             organization_element = soup.select_one(selector)
@@ -73,7 +78,7 @@ class InvestingNewsCrawler(CrawlerUsingRequest):
                 return organization_element.find(text=True, recursive=False).strip()  # ✅ 첫 번째 텍스트 노드만 추출
         return None
     
-    def extract_posted_at(self, soup, selectors):
+    def custom_extract_posted_at(self, soup, selectors):
         """날짜 문자열에서 직접 날짜 추출"""
         for selector in selectors:
             posted_at_element = soup.select_one(selector)

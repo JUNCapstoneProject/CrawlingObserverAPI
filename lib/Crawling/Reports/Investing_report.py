@@ -1,7 +1,7 @@
 from ..Interfaces.CrawlerUsingRequest import CrawlerUsingRequest
-from ..utils.save_data import save_to_json
 from ..config.headers import HEADERS
 from ..utils.random_delay import random_delay
+
 from bs4 import BeautifulSoup
 import cloudscraper
 

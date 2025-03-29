@@ -1,10 +1,12 @@
 from .Crawler import CrawlerInterface
+from ..config.headers import HEADERS
+from ..utils.random_delay import random_delay
+from .Crawler_handlers import EXTRACT_HANDLERS
+
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-from ..config.headers import HEADERS
-from ..utils.save_data import save_to_json
-from ..utils.random_delay import random_delay
+
 
 class CrawlerUsingRequest(CrawlerInterface):
     def __init__(self, name, selector_config):
@@ -13,6 +15,7 @@ class CrawlerUsingRequest(CrawlerInterface):
         self.config = selector_config
         self.max_articles = 2 # 크롤링할 뉴스 수
         self.max_retries = 30  # 요청 재시도 횟수
+        self.custom_handlers = {}
 
     # 사이트 보안 방식에 따라 자식 클래스에서 오버라이드
     def fetch_page(self, url=None):
@@ -46,13 +49,15 @@ class CrawlerUsingRequest(CrawlerInterface):
     def crawl(self):
         """뉴스 리스트 페이지에서 기사 정보 가져오기"""
         # print(f"🔍 {self.__class__.__name__} 크롤링 시작")
+        results = []
+
         fetch_result = self.fetch_page()
         soup = fetch_result["soup"]
         status_code = fetch_result["status_code"]
         target_url = fetch_result["url"]
 
         if not soup:
-            return {
+            return [{
                 "tag": self.tag,
                 "log": {
                     "crawling_type": self.tag,
@@ -62,26 +67,41 @@ class CrawlerUsingRequest(CrawlerInterface):
                 "fail_log": {
                     "err_message": "HTML 파싱 실패 또는 None 반환"
                 }
-            }
+            }]
 
         try:
             articles = self.crawl_main(soup)
             if not articles:
                 raise Exception("기사 추출 실패 (crawl_main 결과 없음)")
 
-            df = pd.DataFrame(articles)
-            return {
-                "tag": self.tag,
-                "log": {
-                    "crawling_type": self.tag,
-                    "status_code": status_code,
-                    "target_url": target_url
-                },
-                "df": df
-            }
+            for article in articles:
+                href = article.get("href")
+
+                if not href:
+                    continue  # URL이 없으면 스킵
+
+                result = {
+                    "tag": self.tag,
+                    "log": {
+                        "crawling_type": self.tag,
+                        "status_code": 200,
+                        "target_url": href
+                    }
+                }
+
+                if article.get("content"):  # 본문 내용이 있으면 성공
+                    result["df"] = pd.DataFrame([article])  # 한 기사 = 한 row
+                else:
+                    result["fail_log"] = {
+                        "err_message": "기사 내용 없음"
+                    }
+
+                results.append(result)
+
+            return results
 
         except Exception as e:
-            return {
+            return [{
                 "tag": self.tag,
                 "log": {
                     "crawling_type": self.tag,
@@ -91,7 +111,7 @@ class CrawlerUsingRequest(CrawlerInterface):
                 "fail_log": {
                     "err_message": str(e)
                 }
-            } 
+            }]
     
     def crawl_main(self, soup):
         # print(f"🔍 {self.__class__.__name__} 메인페이지 크롤링 시작")
@@ -121,7 +141,7 @@ class CrawlerUsingRequest(CrawlerInterface):
 
             # ✅ 개별 기사 추가 크롤링 실행
             article_content = self.crawl_content(url)
-            if not article_content:
+            if not article_content or not article_content.get("content"):
                 print("기사 내용 없음")
                 continue
 
@@ -168,74 +188,87 @@ class CrawlerUsingRequest(CrawlerInterface):
         return None
     
     def extract_fields(self, soup, section):
-        """JSON 설정을 기반으로 `extract_` 함수 동적 호출"""
+        """커스텀 핸들러 우선 적용"""
         extracted_data = {}
         if section in self.config["selectors"]:
             for field, selectors in self.config["selectors"][section].items():
-                extractor_func_name = f"extract_{field}"  # 예: extract_author, extract_content
-                extractor_func = getattr(self, extractor_func_name, None)
-
-                if callable(extractor_func):
-                    extracted_data[field] = extractor_func(soup, selectors)
-
+                # 커스텀 핸들러 우선 → 기본 핸들러 fallback
+                handler = self.custom_handlers.get(field) or EXTRACT_HANDLERS.get(field)
+                if handler:
+                    extracted_data[field] = handler(soup, selectors)
+                else:
+                    print(f"[extract_fields] 핸들러 없음: {field}")
         return extracted_data
+    
+    # def extract_fields(self, soup, section):
+    #     """JSON 설정을 기반으로 `extract_` 함수 동적 호출"""
+    #     extracted_data = {}
+    #     if section in self.config["selectors"]:
+    #         for field, selectors in self.config["selectors"][section].items():
+    #             extractor_func_name = f"extract_{field}"  # 예: extract_author, extract_content
+    #             extractor_func = getattr(self, extractor_func_name, None)
 
-    def extract_href(self, soup, selectors):
-        """기사 링크 (href) 추출"""
-        for selector in selectors:
-            href_element = soup.select_one(selector)
-            if href_element:
-                return href_element["href"]
-        return None
+    #             if callable(extractor_func):
+    #                 extracted_data[field] = extractor_func(soup, selectors)
 
-    def extract_organization(self, soup, selectors):
-        """기사 출처 (organization) 추출"""
-        for selector in selectors:
-            organization_element = soup.select_one(selector)
-            if organization_element:
-                return organization_element.get_text(strip=True)
-        return None
+    #     return extracted_data
 
-    def extract_author(self, soup, selectors):
-        """기사 작성자 (author) 추출"""
-        for selector in selectors:
-            author_element = soup.select_one(selector)
-            if author_element:
-                return author_element.get_text(strip=True)
-        return "Unknown"
+    # def extract_href(self, soup, selectors):
+    #     """기사 링크 (href) 추출"""
+    #     for selector in selectors:
+    #         href_element = soup.select_one(selector)
+    #         if href_element:
+    #             return href_element["href"]
+    #     return None
 
-    def extract_title(self, soup, selectors):
-        """기사 제목 (title) 추출"""
-        for selector in selectors:
-            title_element = soup.select_one(selector)
-            if title_element:
-                return title_element.get_text(strip=True)
-        return None
+    # def extract_organization(self, soup, selectors):
+    #     """기사 출처 (organization) 추출"""
+    #     for selector in selectors:
+    #         organization_element = soup.select_one(selector)
+    #         if organization_element:
+    #             return organization_element.get_text(strip=True)
+    #     return None
 
-    def extract_posted_at(self, soup, selectors):
-        """기사 날짜 (posted_at) 추출"""
-        for selector in selectors:
-            posted_at_element = soup.select_one(selector)
-            if posted_at_element and posted_at_element.has_attr("datetime"):
-                return posted_at_element["datetime"].split(" ")[0]
-        return None
+    # def extract_author(self, soup, selectors):
+    #     """기사 작성자 (author) 추출"""
+    #     for selector in selectors:
+    #         author_element = soup.select_one(selector)
+    #         if author_element:
+    #             return author_element.get_text(strip=True)
+    #     return "Unknown"
 
-    def extract_content(self, soup, selectors):
-        """기사 본문 (content) 추출"""
-        content_texts = []
-        for selector in selectors:
-            content_elements = soup.select(selector)
-            if content_elements:
-                content_texts.extend([e.get_text(strip=True) for e in content_elements])
-        return " ".join(content_texts).strip() if content_texts else None
+    # def extract_title(self, soup, selectors):
+    #     """기사 제목 (title) 추출"""
+    #     for selector in selectors:
+    #         title_element = soup.select_one(selector)
+    #         if title_element:
+    #             return title_element.get_text(strip=True)
+    #     return None
 
-    def extract_tag(self, soup, selectors):
-        """관련 주식 (tag) 추출"""
-        tag = []
-        for selector in selectors:
-            tag_elements = soup.select(selector)
-            tag.extend([ticker.get_text(strip=True) for ticker in tag_elements])
-        return tag if tag else None
+    # def extract_posted_at(self, soup, selectors):
+    #     """기사 날짜 (posted_at) 추출"""
+    #     for selector in selectors:
+    #         posted_at_element = soup.select_one(selector)
+    #         if posted_at_element and posted_at_element.has_attr("datetime"):
+    #             return posted_at_element["datetime"].split(" ")[0]
+    #     return None
+
+    # def extract_content(self, soup, selectors):
+    #     """기사 본문 (content) 추출"""
+    #     content_texts = []
+    #     for selector in selectors:
+    #         content_elements = soup.select(selector)
+    #         if content_elements:
+    #             content_texts.extend([e.get_text(strip=True) for e in content_elements])
+    #     return " ".join(content_texts).strip() if content_texts else None
+
+    # def extract_tag(self, soup, selectors):
+    #     """관련 주식 (tag) 추출"""
+    #     tag = []
+    #     for selector in selectors:
+    #         tag_elements = soup.select(selector)
+    #         tag.extend([ticker.get_text(strip=True) for ticker in tag_elements])
+    #     return ",".join(tag) if tag else None
 
     def get_absolute_url(self, url):
         """절대 URL 변환"""
