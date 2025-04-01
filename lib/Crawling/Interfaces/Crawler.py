@@ -39,10 +39,7 @@ class CrawlerInterface(ABC):
         return True, 10 # 테스트용 임시
 
     def run(self):
-        print(f"DEBUG: {self.__class__.__name__}.run() 실행됨")
-
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # lib/Crawling/
-        temp_dir = os.path.join(base_dir, "Datas")
+        # print(f"DEBUG: {self.__class__.__name__}.run() 실행됨")
 
         while True:
             is_crawling, interval = self.is_crawling_time()
@@ -52,43 +49,27 @@ class CrawlerInterface(ABC):
                 result = self.crawl()
 
                 if result:
-                    from ...Distributor.secretary.Secretary import Secretary
-                    from ...Distributor.secretary.session import SessionLocal
 
-                    db = SessionLocal()
-                    secretary = Secretary(db)
+                    # 결과 전처리
+                    for result_item in result:
+                        df = result_item.get("df")
 
-                    try:
-                        for result_item in result:
-                            df = result_item.get("df")
+                        if isinstance(df, pd.DataFrame):
+                            if "posted_at" in df.columns:
+                                df["posted_at"] = pd.to_datetime(df["posted_at"])
+                            result_item["df"] = df.reset_index(drop=True).replace({np.nan: None}).to_dict(orient="records")
 
-                            if isinstance(df, pd.DataFrame):
-                                if "posted_at" in df.columns:
-                                    df["posted_at"] = pd.to_datetime(df["posted_at"])
-                                result_item["df"] = df.reset_index(drop=True).replace({np.nan: None}).to_dict(orient="records")
+                        elif isinstance(df, list):
+                            for row in df:
+                                if "posted_at" in row:
+                                    row["posted_at"] = pd.to_datetime(row["posted_at"])
 
-                            elif isinstance(df, list):
-                                for row in df:
-                                    if "posted_at" in row:
-                                        row["posted_at"] = pd.to_datetime(row["posted_at"])
-                            # 없거나 실패한 경우는 그대로 둠
-
-                        secretary.distribute(result)
-
-                        # tag = result[0].get("tag", "unknown") if result else "unknown"
-                        # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                        # filename = f"{temp_dir}/crawled_result_{timestamp}_{tag}_{uuid4().hex[:8]}.json"
-
-                        # with open(filename, "w", encoding="utf-8") as f:
-                        #     json.dump(result, f, ensure_ascii=False, indent=2, default=str)
-
-                        # print(f"{self.__class__.__name__}: 전체 크롤링 결과 저장 완료: {filename}")
-                        
-                    finally:
-                        db.close()
+                    # 테스트는 파일, 배포는 DB(주석처리로 선택)
+                    self.save_to_file(result)
+                    # self.save_to_db(result)
 
                 else:
-                    print("[WARNING] 크롤링 결과 없음! `crawl()`에서 반환된 데이터가 없습니다.")
+                    print(f"[WARNING]{self.__class__.__name__}: 크롤링 결과 없음! `crawl()`에서 반환된 데이터가 없습니다.")
 
             else:
                 now = datetime.datetime.now()
@@ -99,7 +80,36 @@ class CrawlerInterface(ABC):
             print(f"{self.__class__.__name__}: {minutes}분 {seconds}초 동안 대기...")
             time.sleep(sleep_time)
 
+    def save_to_file(self, result):
 
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # lib/Crawling/
+        temp_dir = os.path.join(base_dir, "Datas")
+        
+        tag = result[0].get("tag", "unknown") if result else "unknown"
+        if tag == "income_statement":
+            tag = "financials"
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{temp_dir}/crawled_result_{timestamp}_{tag}_{uuid4().hex[:8]}.json"
+
+        os.makedirs(temp_dir, exist_ok=True)
+
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2, default=str)
+
+        # print(f"{self.__class__.__name__}: 크롤링 결과 파일 저장 완료: {filename}")
+
+    def save_to_db(self, result):
+        from ...Distributor.secretary.Secretary import Secretary
+        from ...Distributor.secretary.session import SessionLocal
+
+        db = SessionLocal()
+        secretary = Secretary(db)
+
+        try:
+            secretary.distribute(result)
+            # print(f"{self.__class__.__name__}: DB 저장 완료")
+        finally:
+            db.close()
 
 
     @abstractmethod

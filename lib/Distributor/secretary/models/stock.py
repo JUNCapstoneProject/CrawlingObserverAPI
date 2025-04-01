@@ -6,7 +6,7 @@ from .core import Base
 class Stock(Base):
     __tablename__ = "stock"
 
-    crawling_id = Column(VARCHAR(36), ForeignKey("crawling_logs.crawling_id"), primary_key=True, nullable=False)
+    crawling_id = Column(VARCHAR(64), ForeignKey("crawling_logs.crawling_id"), primary_key=True, nullable=False)
     ticker = Column(VARCHAR(10), nullable=False)
     posted_at = Column(DateTime, nullable=False)
 

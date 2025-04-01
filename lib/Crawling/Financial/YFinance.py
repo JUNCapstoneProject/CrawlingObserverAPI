@@ -1,5 +1,6 @@
 from ..Interfaces.Crawler import CrawlerInterface
 from ..config.LoadConfig import load_config
+from ..config.required_fields import is_valid_financial_row
 
 import yfinance as yf
 import pandas as pd
@@ -10,7 +11,7 @@ class YFinanceCrawler(CrawlerInterface):
     def __init__(self, name):
         super().__init__(name)
         self.batch_size = 100
-        self.symbols = load_config("symbols_test.json")
+        self.symbols = load_config("symbols.json")
         self.tag = "financials"
 
     def crawl(self):
@@ -22,20 +23,14 @@ class YFinanceCrawler(CrawlerInterface):
             try:
                 tickers = yf.Tickers(" ".join(batch))
             except Exception as e:
-                # tickers 객체 자체가 실패한 경우 → batch 전체 실패 처리
                 for symbol in batch:
                     for tag in ["income_statement", "balance_sheet", "cash_flow"]:
                         results.append({
                             "tag": tag,
-                            "log": {
-                                "crawling_type": "financials",
-                                "status_code": 500
-                            },
-                            "fail_log": {
-                                "err_message": f"yf.Tickers 실패: {str(e)}"
-                            }
+                            "log": {"crawling_type": "financials", "status_code": 500},
+                            "fail_log": {"err_message": f"yf.Tickers 실패: {str(e)}"}
                         })
-                continue  # 다음 배치로 넘어감
+                continue
 
             for symbol in batch:
                 try:
@@ -43,114 +38,64 @@ class YFinanceCrawler(CrawlerInterface):
                     if not stock:
                         raise ValueError("해당 symbol에 대한 데이터 없음")
 
-                    # 🔹 income_statement
-                    try:
-                        if not stock.financials.empty:
-                            df = stock.financials.T.reset_index().rename(columns={"index": "posted_at"})
-                            df["Symbol"] = symbol
-                            df["posted_at"] = pd.to_datetime(df["posted_at"])
-                            df["financial_type"] = "income_statement"
-                            latest = df.sort_values("posted_at").iloc[[-1]]
+                    # 각 재무제표 유형별 처리
+                    for fin_type, accessor in [
+                        ("income_statement", lambda s: s.quarterly_financials),
+                        ("balance_sheet", lambda s: s.quarterly_balance_sheet),
+                        ("cash_flow", lambda s: s.quarterly_cashflow)
+                    ]:
+                        try:
+                            df_raw = accessor(stock)
+                            df_latest = self.extract_latest_or_fallback(df_raw, symbol, fin_type)
+
+                            # ✅ 분기별로 나눠서 저장
+                            for _, row in df_latest.iterrows():
+                                row_dict = {k: (None if pd.isna(v) else v) for k, v in row.to_dict().items()}  # NaN 처리
+                                results.append({
+                                    "tag": fin_type,
+                                    "log": {"crawling_type": "financials", "status_code": 200},
+                                    "df": [row_dict]
+                                })
+
+                        except Exception as e:
                             results.append({
-                                "tag": "income_statement",
-                                "log": {
-                                    "crawling_type": "financials",
-                                    "status_code": 200
-                                },
-                                "df": latest.reset_index(drop=True)
+                                "tag": fin_type,
+                                "log": {"crawling_type": "financials", "status_code": 500},
+                                "fail_log": {"err_message": str(e)}
                             })
-                        else:
-                            raise ValueError("income_statement 데이터 없음")
-
-                    except Exception as e:
-                        results.append({
-                            "tag": "income_statement",
-                            "log": {
-                                "crawling_type": "financials",
-                                "status_code": 500
-                            },
-                            "fail_log": {
-                                "err_message": str(e)
-                            }
-                        })
-
-                    # 🔹 balance_sheet
-                    try:
-                        if not stock.balance_sheet.empty:
-                            df = stock.balance_sheet.T.reset_index().rename(columns={"index": "posted_at"})
-                            df["Symbol"] = symbol
-                            df["posted_at"] = pd.to_datetime(df["posted_at"])
-                            df["financial_type"] = "balance_sheet"
-                            latest = df.sort_values("posted_at").iloc[[-1]]
-                            results.append({
-                                "tag": "balance_sheet",
-                                "log": {
-                                    "crawling_type": "financials",
-                                    "status_code": 200
-                                },
-                                "df": latest.reset_index(drop=True)
-                            })
-                        else:
-                            raise ValueError("balance_sheet 데이터 없음")
-
-                    except Exception as e:
-                        results.append({
-                            "tag": "balance_sheet",
-                            "log": {
-                                "crawling_type": "financials",
-                                "status_code": 500
-                            },
-                            "fail_log": {
-                                "err_message": str(e)
-                            }
-                        })
-
-                    # 🔹 cash_flow
-                    try:
-                        if not stock.cashflow.empty:
-                            df = stock.cashflow.T.reset_index().rename(columns={"index": "posted_at"})
-                            df["Symbol"] = symbol
-                            df["posted_at"] = pd.to_datetime(df["posted_at"])
-                            df["financial_type"] = "cash_flow"
-                            latest = df.sort_values("posted_at").iloc[[-1]]
-                            results.append({
-                                "tag": "cash_flow",
-                                "log": {
-                                    "crawling_type": "financials",
-                                    "status_code": 200
-                                },
-                                "df": latest.reset_index(drop=True)
-                            })
-                        else:
-                            raise ValueError("cash_flow 데이터 없음")
-
-                    except Exception as e:
-                        results.append({
-                            "tag": "cash_flow",
-                            "log": {
-                                "crawling_type": "financials",
-                                "status_code": 500
-                            },
-                            "fail_log": {
-                                "err_message": str(e)
-                            }
-                        })
 
                 except Exception as symbol_level_error:
-                    # 종목 자체가 불러와지지 않았거나 완전한 실패일 경우
                     for tag in ["income_statement", "balance_sheet", "cash_flow"]:
                         results.append({
                             "tag": tag,
-                            "log": {
-                                "crawling_type": "financials",
-                                "status_code": 500
-                            },
-                            "fail_log": {
-                                "err_message": f"심볼 수준 실패: {str(symbol_level_error)}"
-                            }
+                            "log": {"crawling_type": "financials", "status_code": 500},
+                            "fail_log": {"err_message": f"심볼 수준 실패: {str(symbol_level_error)}"}
                         })
 
             time.sleep(2)
 
         return results
+
+    def extract_latest_or_fallback(self, df: pd.DataFrame, symbol: str, financial_type: str):
+        if df.empty:
+            raise ValueError(f"{financial_type} 원본 데이터가 비어 있음")
+
+        df = df.T.reset_index().rename(columns={"index": "posted_at"})
+        df["Symbol"] = symbol
+        df["posted_at"] = pd.to_datetime(df["posted_at"])
+        df["financial_type"] = financial_type
+
+        df_sorted = df.sort_values("posted_at", ascending=False)
+
+        valid_rows = []
+        for _, row in df_sorted.iterrows():
+            if is_valid_financial_row(row, financial_type):
+                valid_rows.append(row)
+            if len(valid_rows) == 2:
+                break
+
+        if not valid_rows:
+            raise ValueError(f"{financial_type}에 유효한 필드가 없음 (Symbol: {symbol})")
+
+        return pd.DataFrame(valid_rows).reset_index(drop=True)
 

@@ -27,33 +27,37 @@ class Secretary:
         else:
             self._distribute_single(result)
 
+    def _generate_hash_id(self, tag: str, df: list[dict]) -> str:
+        import hashlib, json
+        import pandas as pd
+
+        def convert(obj):
+            if isinstance(obj, pd.Timestamp):
+                return obj.isoformat()
+            if isinstance(obj, dict):
+                return {k: convert(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [convert(i) for i in obj]
+            return obj
+
+        cleaned_df = convert(df)
+
+        raw_string = json.dumps({
+            "tag": tag,
+            "df": cleaned_df
+        }, sort_keys=True, ensure_ascii=False)
+
+        return hashlib.sha256(raw_string.encode("utf-8")).hexdigest()
+
+
     def _distribute_single(self, result: dict):
         from .models.core import CrawlingLog, FailLog
         import pandas as pd
+        import uuid
         from sqlalchemy.exc import SQLAlchemyError
 
         try:
-            from uuid import uuid4
             log = result.get("log", {})
-            crawling_log = CrawlingLog(
-                crawling_id=str(uuid4()),
-                crawling_type=log.get("crawling_type"),
-                status_code=log.get("status_code"),
-                target_url=log.get("target_url")
-            )
-            self.db.add(crawling_log)
-            self.db.flush()
-            self.db.refresh(crawling_log)
-            crawling_id = crawling_log.crawling_id
-
-            if "fail_log" in result:
-                self.db.add(FailLog(
-                    crawling_id=crawling_id,
-                    err_message=result["fail_log"].get("err_message")
-                ))
-                self.db.commit()
-                return
-
             tag = result.get("tag")
             if not tag or tag not in self.handlers:
                 raise ValueError(f"[ERROR] 등록되지 않은 tag: {tag}")
@@ -62,6 +66,36 @@ class Secretary:
             if isinstance(df, pd.DataFrame):
                 df = df.dropna(how="all")
                 df = df.to_dict(orient="records")
+
+            # ✅ 실패 로그인 경우 uuid 사용
+            if "fail_log" in result:
+                crawling_id = str(uuid.uuid4())
+            else:
+                crawling_id = self._generate_hash_id(tag, df)
+
+            # 중복된 crawling_id 존재 여부 체크 (optional, 안전장치)
+            exists = self.db.query(CrawlingLog).filter_by(crawling_id=crawling_id).first()
+            if exists:
+                # print(f"[SKIP] 이미 처리된 데이터: crawling_id={crawling_id}")
+                return
+
+            crawling_log = CrawlingLog(
+                crawling_id=crawling_id,
+                crawling_type=log.get("crawling_type"),
+                status_code=log.get("status_code"),
+                target_url=log.get("target_url")
+            )
+            self.db.add(crawling_log)
+            self.db.flush()
+            self.db.refresh(crawling_log)
+
+            if "fail_log" in result:
+                self.db.add(FailLog(
+                    crawling_id=crawling_id,
+                    err_message=result["fail_log"].get("err_message")
+                ))
+                self.db.commit()
+                return
 
             self.handlers[tag](self.db, crawling_id, df)
             self.db.commit()
@@ -73,5 +107,7 @@ class Secretary:
 
         except Exception as e:
             self.db.rollback()
-            print(f"[ROLLBACK] 일반 오류 발생: {e}")
+            print(f"[ROLLBACK] 일반 오류 발생: {repr(e)}")
+            print(f"[ROLLBACK] 일반 오류 발생: {type(e).__name__}: {e}")
+            # print(f"[ROLLBACK] 일반 오류 발생: {e}")
             raise

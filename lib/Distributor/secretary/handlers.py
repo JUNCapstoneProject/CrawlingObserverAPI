@@ -95,52 +95,93 @@ def store_financials_common(db, crawling_id, row):
        print(f"[ERROR] insert 실패: {e}")
 
 def store_income_statement(db, crawling_id, data):
-    if data:  # 데이터가 있다면 첫 번째 row 기준으로 공통 정보 저장
+    if data:
         store_financials_common(db, crawling_id, data[0])
-    
-    for row in data:
 
+    for row in data:
         db.add(IncomeStatement(
             crawling_id=crawling_id,
+
+            # ✅ 반드시 필요한 필드
             total_revenue=row.get("Total Revenue"),
+            operating_income=row.get("Operating Income"),
+            net_income=row.get("Net Income"),
+            ebitda=row.get("EBITDA"),
+
+            # ⚠️ 일반적으로 포함되지만 누락될 수 있음
+            diluted_eps=row.get("Diluted EPS"),
             gross_profit=row.get("Gross Profit"),
             cost_of_revenue=row.get("Cost Of Revenue"),
             sgna=row.get("Selling General And Administration"),
-            operating_income=row.get("Operating Income"),
-            other_non_operating_income_expenses=row.get("Other Non Operating Income Expenses"),
             reconciled_depreciation=row.get("Reconciled Depreciation"),
-            ebitda=row.get("EBITDA")
+            other_non_operating_income_expenses=row.get("Other Non Operating Income Expenses"),
+            interest_expense=row.get("Interest Expense"),
+            interest_income=row.get("Interest Income"),
+
+            # ❌ 자주 누락되거나 특정 상황에서만 존재
+            special_income_charges=row.get("Special Income Charges"),
+            restructuring_and_mergern_acquisition=row.get("Restructuring And Mergern Acquisition"),
+            rent_expense_supplemental=row.get("Rent Expense Supplemental"),
+            average_dilution_earnings=row.get("Average Dilution Earnings"),
         ))
 
+
 def store_balance_sheet(db, crawling_id, data):
-    if data:  # 데이터가 있다면 첫 번째 row 기준으로 공통 정보 저장
+    if data:
         store_financials_common(db, crawling_id, data[0])
-    
+
     for row in data:
         db.add(BalanceSheet(
             crawling_id=crawling_id,
+
+            # ✅ 반드시 필요한 필드
+            total_assets=row.get("Total Assets"),
+            total_liabilities=row.get("Total Liabilities Net Minority Interest"),
+            stockholders_equity=row.get("Stockholders Equity"),
+
+            # ⚠️ 일반적으로 포함
             current_assets=row.get("Current Assets"),
             current_liabilities=row.get("Current Liabilities"),
+            retained_earnings=row.get("Retained Earnings"),
             cash_and_cash_equivalents=row.get("Cash And Cash Equivalents"),
             accounts_receivable=row.get("Accounts Receivable"),
             inventory=row.get("Inventory"),
             cash_cash_equivalents_and_short_term_investments=row.get("Cash Cash Equivalents And Short Term Investments"),
+
+            # ❌ 자주 누락됨
             cash_equivalents=row.get("Cash Equivalents"),
             cash_financial=row.get("Cash Financial"),
             other_short_term_investments=row.get("Other Short Term Investments"),
-            stockholders_equity=row.get("Stockholders Equity"),
-            total_assets=row.get("Total Assets"),
-            retained_earnings=row.get("Retained Earnings")
+            goodwill=row.get("Goodwill"),
+            preferred_stock=row.get("Preferred Stock"),
+            line_of_credit=row.get("Line Of Credit"),
+            treasury_stock=row.get("Treasury Stock"),
         ))
 
+
 def store_cash_flow(db, crawling_id, data):
-    if data:  # 데이터가 있다면 첫 번째 row 기준으로 공통 정보 저장
+    if data:
         store_financials_common(db, crawling_id, data[0])
-    
+
     for row in data:
         db.add(CashFlow(
             crawling_id=crawling_id,
+
+            # ✅ 반드시 필요한 필드
             operating_cash_flow=row.get("Operating Cash Flow"),
+            investing_cash_flow=row.get("Investing Cash Flow"),
+            financing_cash_flow=row.get("Financing Cash Flow"),
+            free_cash_flow=row.get("Free Cash Flow"),
+
+            # ⚠️ 일반적으로 포함
             capital_expenditure=row.get("Capital Expenditure"),
-            investing_cash_flow=row.get("Investing Cash Flow")
+            depreciation_and_amortization=row.get("Depreciation And Amortization"),
+            stock_based_compensation=row.get("Stock Based Compensation"),
+            income_tax_paid=row.get("Income Tax Paid Supplemental Data"),
+
+            # ❌ 자주 누락됨
+            net_intangibles_purchase_and_sale=row.get("Net Intangibles Purchase And Sale"),
+            sale_of_business=row.get("Sale Of Business"),
+            net_foreign_currency_exchange_gain_loss=row.get("Net Foreign Currency Exchange Gain Loss"),
         ))
+
