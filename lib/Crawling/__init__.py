@@ -9,14 +9,14 @@ def run():
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = []
         
-        # 뉴스 크롤링 실행
-        futures.append(executor.submit(run_news))
+        # # 뉴스 크롤링 실행
+        # futures.append(executor.submit(run_news))
         
-        # 리포트 크롤링 실행
-        futures.append(executor.submit(run_reports))
+        # # 리포트 크롤링 실행
+        # futures.append(executor.submit(run_reports))
         
-        # 금융 데이터 크롤링 실행 (주석 해제 시 가능)
-        futures.append(executor.submit(run_financial))
+        # # 금융 데이터 크롤링 실행 (주석 해제 시 가능)
+        # futures.append(executor.submit(run_financial))
         
         # 주식 데이터 크롤링 실행 (주석 해제 시 가능)
         futures.append(executor.submit(run_stock))

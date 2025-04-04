@@ -1,11 +1,13 @@
-from ..Interfaces.CrawlerUsingRequest import CrawlerUsingRequest
-from ..config.headers import HEADERS
-from ..utils.random_delay import random_delay
-
 from bs4 import BeautifulSoup
 import cloudscraper
 import datetime
 import re
+
+from lib.Crawling.Interfaces.CrawlerUsingRequest import CrawlerUsingRequest
+from lib.Crawling.config.headers import HEADERS
+from lib.Crawling.utils.random_delay import random_delay
+
+
 
 class InvestingReportCrawler(CrawlerUsingRequest):
 

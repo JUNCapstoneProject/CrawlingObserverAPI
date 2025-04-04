@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import os
+from contextlib import contextmanager
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -18,3 +19,11 @@ db_url = os.getenv("DB_URL")
 
 engine = create_engine(db_url, echo=False, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+
+@contextmanager
+def get_session():
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()

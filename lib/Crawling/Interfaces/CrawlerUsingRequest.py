@@ -1,11 +1,11 @@
-from .Crawler import CrawlerInterface
-from ..config.headers import HEADERS
-from ..utils.random_delay import random_delay
-from .Crawler_handlers import EXTRACT_HANDLERS
-
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
+
+from lib.Crawling.Interfaces.Crawler import CrawlerInterface
+from lib.Crawling.config.headers import HEADERS
+from lib.Crawling.utils.random_delay import random_delay
+from lib.Crawling.Interfaces.Crawler_handlers import EXTRACT_HANDLERS
 
 
 class CrawlerUsingRequest(CrawlerInterface):

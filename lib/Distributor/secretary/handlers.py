@@ -1,12 +1,12 @@
-from .models.news import News, NewsTag
-from .models.macro import MacroIndex, MacroEconomics
-from .models.reports import Report, ReportTag
-from .models.stock import Stock
-from .models.financials import (
+from lib.Distributor.secretary.models.news import News, NewsTag
+from lib.Distributor.secretary.models.macro import MacroIndex, MacroEconomics
+from lib.Distributor.secretary.models.reports import Report, ReportTag
+from lib.Distributor.secretary.models.stock import Stock
+from lib.Distributor.secretary.models.financials import (
     FinancialStatement,
     IncomeStatement,
     BalanceSheet,
-    CashFlow,
+    CashFlow
 )
 
 def store_news(db, crawling_id, data):
@@ -69,16 +69,33 @@ def store_macro(db, crawling_id, data):
 
 def store_stock(db, crawling_id, data):
     for row in data:
-        db.add(Stock(
-            crawling_id=crawling_id,
-            ticker=row.get("Symbol"),
-            posted_at=row.get("posted_at"),
-            open=row.get("Open"),
-            high=row.get("High"),
-            low=row.get("Low"),
-            close=row.get("Close"),
-            volume=row.get("Volume")
-        ))
+        ticker = row.get("Symbol")
+
+        # ticker 기준으로 기존 데이터 확인
+        existing = db.query(Stock).filter_by(ticker=ticker).first()
+
+        if existing:
+            # 업데이트
+            existing.crawling_id = crawling_id
+            existing.posted_at = row.get("posted_at")
+            existing.open = row.get("Open")
+            existing.high = row.get("High")
+            existing.low = row.get("Low")
+            existing.close = row.get("Close")
+            existing.volume = row.get("Volume")
+        else:
+            # 삽입
+            db.add(Stock(
+                crawling_id=crawling_id,
+                ticker=ticker,
+                posted_at=row.get("posted_at"),
+                open=row.get("Open"),
+                high=row.get("High"),
+                low=row.get("Low"),
+                close=row.get("Close"),
+                volume=row.get("Volume")
+            ))
+
 
 def store_financials_common(db, crawling_id, row):
     try:

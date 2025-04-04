@@ -1,3 +1,16 @@
+import json
+import uuid
+import hashlib
+import pandas as pd
+from sqlalchemy.exc import SQLAlchemyError
+
+from lib.Distributor.secretary.models.core import CrawlingLog, FailLog
+from lib.Distributor.secretary.handlers import (
+    store_news, store_macro, store_reports, store_stock,
+    store_income_statement, store_balance_sheet, store_cash_flow
+)
+
+
 class Secretary:
     def __init__(self, db_session):
         self.db = db_session
@@ -5,10 +18,10 @@ class Secretary:
         self._auto_register()
 
     def _auto_register(self):
-        from .handlers import (
-            store_news, store_macro, store_reports, store_stock,
-            store_income_statement, store_balance_sheet, store_cash_flow
-        )
+        # from lib.Distributor.secretary.handlers import (
+        #     store_news, store_macro, store_reports, store_stock,
+        #     store_income_statement, store_balance_sheet, store_cash_flow
+        # )
         self.register("news", store_news)
         self.register("macro", store_macro)
         self.register("reports", store_reports)
@@ -28,8 +41,8 @@ class Secretary:
             self._distribute_single(result)
 
     def _generate_hash_id(self, tag: str, df: list[dict]) -> str:
-        import hashlib, json
-        import pandas as pd
+        # import hashlib, json
+        # import pandas as pd
 
         def convert(obj):
             if isinstance(obj, pd.Timestamp):
@@ -51,10 +64,11 @@ class Secretary:
 
 
     def _distribute_single(self, result: dict):
-        from .models.core import CrawlingLog, FailLog
-        import pandas as pd
-        import uuid
-        from sqlalchemy.exc import SQLAlchemyError
+        # from lib.Distributor.secretary.models.core import CrawlingLog, FailLog
+
+        # import pandas as pd
+        # import uuid
+        # from sqlalchemy.exc import SQLAlchemyError
 
         try:
             log = result.get("log", {})

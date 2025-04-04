@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
 from sqlalchemy.dialects.mysql import VARCHAR
 
-from .core import Base
+from lib.Distributor.secretary.models.core import Base
 
 class News(Base):
     __tablename__ = "news"
@@ -19,5 +19,5 @@ class News(Base):
 class NewsTag(Base):
     __tablename__ = "news_tag"
     
-    crawling_id = Column(VARCHAR(64), ForeignKey("crawling_logs.crawling_id"), primary_key=True, nullable=False)
+    crawling_id = Column(VARCHAR(64), ForeignKey("news.crawling_id"), primary_key=True, nullable=False)
     tag = Column(VARCHAR(255), nullable=False, primary_key=True)

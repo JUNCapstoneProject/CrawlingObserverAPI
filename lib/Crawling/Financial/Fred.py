@@ -1,7 +1,7 @@
-from ..Interfaces.Crawler import CrawlerInterface
-
 from fredapi import Fred
 import pandas as pd
+
+from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 
 class FredCrawler(CrawlerInterface):
     def __init__(self, name, api_key):

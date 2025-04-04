@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from uuid import uuid4
 
-from ..config.LoadConfig import load_config
+from lib.Crawling.config.LoadConfig import load_config
 
 
 class CrawlerInterface(ABC):
@@ -65,8 +65,8 @@ class CrawlerInterface(ABC):
                                     row["posted_at"] = pd.to_datetime(row["posted_at"])
 
                     # 테스트는 파일, 배포는 DB(주석처리로 선택)
-                    self.save_to_file(result)
-                    # self.save_to_db(result)
+                    # self.save_to_file(result)
+                    self.save_to_db(result)
 
                 else:
                     print(f"[WARNING]{self.__class__.__name__}: 크롤링 결과 없음! `crawl()`에서 반환된 데이터가 없습니다.")

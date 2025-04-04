@@ -1,4 +1,4 @@
-from ..Interfaces.CrawlerUsingRequest import CrawlerUsingRequest
+from lib.Crawling.Interfaces.CrawlerUsingRequest import CrawlerUsingRequest
 
 class YahooNewsCrawler(CrawlerUsingRequest):
     def __init__(self, name, config):

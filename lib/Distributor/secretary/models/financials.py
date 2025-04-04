@@ -1,7 +1,7 @@
 from sqlalchemy import Column, DateTime, DECIMAL, ForeignKey
 from sqlalchemy.dialects.mysql import VARCHAR
 
-from .core import Base
+from lib.Distributor.secretary.models.core import Base
 
 # 📘 financials 테이블
 class FinancialStatement(Base):
@@ -16,7 +16,7 @@ class FinancialStatement(Base):
 class IncomeStatement(Base):
     __tablename__ = "income_statement"
 
-    crawling_id = Column(VARCHAR(64), ForeignKey("crawling_logs.crawling_id"), primary_key=True, nullable=False)
+    crawling_id = Column(VARCHAR(64), ForeignKey("financials.crawling_id"), primary_key=True, nullable=False)
 
     # ✅ 반드시 필요한 항목
     total_revenue = Column(DECIMAL(18, 2), nullable=False)
@@ -45,7 +45,7 @@ class IncomeStatement(Base):
 class BalanceSheet(Base):
     __tablename__ = "balance_sheet"
 
-    crawling_id = Column(VARCHAR(64), ForeignKey("crawling_logs.crawling_id"), primary_key=True, nullable=False)
+    crawling_id = Column(VARCHAR(64), ForeignKey("financials.crawling_id"), primary_key=True, nullable=False)
 
     # ✅ 필수 항목
     total_assets = Column(DECIMAL(18, 2), nullable=False)
@@ -75,7 +75,7 @@ class BalanceSheet(Base):
 class CashFlow(Base):
     __tablename__ = "cash_flow"
 
-    crawling_id = Column(VARCHAR(64), ForeignKey("crawling_logs.crawling_id"), primary_key=True, nullable=False)
+    crawling_id = Column(VARCHAR(64), ForeignKey("financials.crawling_id"), primary_key=True, nullable=False)
 
     # ✅ 반드시 필요한 항목
     operating_cash_flow = Column(DECIMAL(18, 2), nullable=False)
