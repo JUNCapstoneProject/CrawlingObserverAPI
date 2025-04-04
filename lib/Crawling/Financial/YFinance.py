@@ -1,17 +1,30 @@
-from ..Interfaces.Crawler import CrawlerInterface
-from ..config.LoadConfig import load_config
-from ..config.required_fields import is_valid_financial_row
-
 import yfinance as yf
 import pandas as pd
 import time
+
+from lib.Crawling.Interfaces.Crawler import CrawlerInterface
+from lib.Crawling.config.required_fields import is_valid_financial_row
+
+from lib.Distributor.secretary.models.company import Company
+from lib.Distributor.secretary.session import get_session  # 너희 프로젝트 기준 세션 로더
+from typing import List
+
+def get_symbols_from_db(limit: int = None) -> List[str]:
+    with get_session() as session:
+        query = session.query(Company.ticker).order_by(Company.company_id.asc())
+        if limit is not None:
+            query = query.limit(limit)
+        results = query.all()
+        return [ticker[0] for ticker in results]
+
+
 
 class YFinanceCrawler(CrawlerInterface):
 
     def __init__(self, name):
         super().__init__(name)
         self.batch_size = 100
-        self.symbols = load_config("symbols.json")
+        self.symbols = get_symbols_from_db(limit=5)
         self.tag = "financials"
 
     def crawl(self):

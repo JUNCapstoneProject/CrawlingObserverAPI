@@ -3,9 +3,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 import time
 
-from ..Interfaces.Crawler import CrawlerInterface
-from ..config.LoadConfig import load_config
+from lib.Crawling.Interfaces.Crawler import CrawlerInterface
+from lib.Distributor.secretary.models.company import Company
+from lib.Distributor.secretary.session import get_session  # 너희 프로젝트 기준 세션 로더
+from typing import List
 
+def get_symbols_from_db(limit: int = None) -> List[str]:
+    with get_session() as session:
+        query = session.query(Company.ticker).order_by(Company.company_id.asc())
+        if limit is not None:
+            query = query.limit(limit)
+        results = query.all()
+        return [ticker[0] for ticker in results]
 
 class YFinanceStockCrawler(CrawlerInterface):
 
@@ -13,7 +22,7 @@ class YFinanceStockCrawler(CrawlerInterface):
         super().__init__(name)
         self.batch_size = 30       # 한 스레드에 넘길 배치 크기
         self.max_workers = 20      # 동시 실행 스레드 수
-        self.symbols = load_config("symbols.json")
+        self.symbols = get_symbols_from_db(limit=5)
         self.tag = "stock"
 
     def crawl(self):
