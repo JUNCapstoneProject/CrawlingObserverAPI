@@ -65,7 +65,7 @@ class CrawlerInterface(ABC):
                                     row["posted_at"] = pd.to_datetime(row["posted_at"])
 
                     # 테스트는 파일, 배포는 DB(주석처리로 선택)
-                    # self.save_to_file(result)
+                    self.save_to_file(result)
                     self.save_to_db(result)
 
                 else:

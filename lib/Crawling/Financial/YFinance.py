@@ -6,7 +6,7 @@ from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 from lib.Crawling.config.required_fields import is_valid_financial_row
 
 from lib.Distributor.secretary.models.company import Company
-from lib.Distributor.secretary.session import get_session  # 너희 프로젝트 기준 세션 로더
+from lib.Distributor.secretary.session import get_session 
 from typing import List
 
 def get_symbols_from_db(limit: int = None) -> List[str]:
