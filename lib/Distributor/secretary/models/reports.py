@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, DateTime, Text, ForeignKey
-from sqlalchemy.dialects.mysql import VARCHAR
+from sqlalchemy.dialects.mysql import VARCHAR, LONGTEXT
 
 from lib.Distributor.secretary.models.core import Base
 
@@ -12,7 +12,7 @@ class Report(Base):
     hits = Column(Integer)
     author = Column(VARCHAR(45), nullable=False)
     posted_at = Column(DateTime, nullable=False)
-    content = Column(Text, nullable=False)
+    content = Column(LONGTEXT, nullable=False)
     ai_analysis = Column(VARCHAR(512), nullable=True)
 
 

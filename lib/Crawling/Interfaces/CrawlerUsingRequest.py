@@ -13,9 +13,11 @@ class CrawlerUsingRequest(CrawlerInterface):
         super().__init__(name)
         self.tag = None
         self.config = selector_config
-        self.max_articles = 2 # 크롤링할 뉴스 수
-        self.max_retries = 30  # 요청 재시도 횟수
+        self.max_articles = 30 # 크롤링할 뉴스 수
+        self.max_retries = 50  # 요청 재시도 횟수
         self.custom_handlers = {}
+        self.use_pagination = bool(selector_config.get("next_page", False))
+
 
     # 사이트 보안 방식에 따라 자식 클래스에서 오버라이드
     def fetch_page(self, url=None):
@@ -114,43 +116,47 @@ class CrawlerUsingRequest(CrawlerInterface):
             }]
     
     def crawl_main(self, soup):
-        # print(f"🔍 {self.__class__.__name__} 메인페이지 크롤링 시작")
-        # print(self.config)
-        """메인 페이지에서 기사 목록 추출"""
         articles, seen_urls = [], set()
-        containers = self.extract_mainContainer(soup)
-        # print(containers)
+        page_url = self.config["url"]
+        page_count = 0
 
-        if not containers:
-            print("[ERROR] 메인 컨테이너를 찾을 수 없음! 선택자 확인 필요")
-            return None
-
-        for article in containers:
-            if len(articles) >= self.max_articles:
+        while len(articles) < self.max_articles and page_url and page_count < 10:
+            fetch_result = self.fetch_page(page_url)
+            soup = fetch_result["soup"]
+            if not soup:
                 break
 
-            # ✅ JSON에서 정의된 `main` 필드 자동 추출
-            main_data = self.extract_fields(article, "main")
-            # print(main_data)
+            containers = self.extract_mainContainer(soup)
+            if not containers:
+                print("[ERROR] 메인 컨테이너를 찾을 수 없음!")
+                break
 
-            url = self.get_absolute_url(main_data.get("href"))
-            if not url or url in seen_urls:
-                # print("중복 링크 탐지")
-                continue
-            seen_urls.add(url)
+            for article in containers:
+                if len(articles) >= self.max_articles:
+                    break
 
-            # ✅ 개별 기사 추가 크롤링 실행
-            article_content = self.crawl_content(url)
-            if not article_content or not article_content.get("content"):
-                # print("기사 내용 없음")
-                continue
+                main_data = self.extract_fields(article, "main")
+                url = self.get_absolute_url(main_data.get("href"))
+                if not url or url in seen_urls:
+                    continue
+                seen_urls.add(url)
 
-            # ✅ JSON에서 정의된 필드 기반으로 동적 데이터 생성
-            article_data = {
-                **main_data,  # ✅ main에서 가져온 데이터 추가
-                **article_content  # ✅ content에서 가져온 데이터 추가
-            }
-            articles.append(article_data)
+                article_content = self.crawl_content(url)
+                if not article_content or not article_content.get("content"):
+                    continue
+
+                article_data = {
+                    **main_data,
+                    **article_content
+                }
+                articles.append(article_data)
+
+            # ✅ 페이지네이션이 설정된 경우에만 다음 페이지 진행
+            if self.use_pagination:
+                page_url = self.get_next_page_url(soup)
+                page_count += 1
+            else:
+                break
 
         return articles
 
@@ -203,3 +209,17 @@ class CrawlerUsingRequest(CrawlerInterface):
     def get_absolute_url(self, url):
         """절대 URL 변환"""
         return url if url.startswith("http") else self.config["base_url"] + url
+    
+    def get_next_page_url(self, soup):
+        """다음 페이지 URL 추출"""
+        try:
+            next_selector = self.config.get("next_page")
+            if not next_selector:
+                return None
+            next_link = soup.select_one(next_selector)
+            if next_link and next_link.get("href"):
+                # print(f"[get_next_page_url] 다음 페이지 URL 추출됨: {next_link['href']}")
+                return self.get_absolute_url(next_link.get("href"))
+        except Exception as e:
+            print(f"[get_next_page_url] 다음 페이지 URL 추출 실패: {e}")
+        return None
