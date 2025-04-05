@@ -70,10 +70,28 @@ def store_macro(db, crawling_id, data):
 def store_stock(db, crawling_id, data):
     for row in data:
         ticker = row.get("Symbol")
+        posted_at = row.get("posted_at")
 
         # ticker 기준으로 기존 데이터 확인
         existing = db.query(Stock).filter_by(ticker=ticker).first()
 
+        previous = (
+            db.query(Stock)
+            .filter(Stock.ticker == ticker, Stock.posted_at < posted_at)
+            .order_by(Stock.posted_at.desc())
+            .first()
+        )
+
+        previous_close = previous.close if previous else None
+        current_close = row.get("Close")
+        change = 1
+
+        if previous_close and current_close:
+            try:
+                change = round(float(current_close) / float(previous_close), 4)
+            except ZeroDivisionError:
+                change = 1  # 안전 처리
+        
         if existing:
             # 업데이트
             existing.crawling_id = crawling_id
@@ -83,6 +101,7 @@ def store_stock(db, crawling_id, data):
             existing.low = row.get("Low")
             existing.close = row.get("Close")
             existing.volume = row.get("Volume")
+            existing.change = change
         else:
             # 삽입
             db.add(Stock(
@@ -93,7 +112,8 @@ def store_stock(db, crawling_id, data):
                 high=row.get("High"),
                 low=row.get("Low"),
                 close=row.get("Close"),
-                volume=row.get("Volume")
+                volume=row.get("Volume"),
+                change=change
             ))
 
 
