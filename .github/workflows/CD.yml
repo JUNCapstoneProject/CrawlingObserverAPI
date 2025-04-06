@@ -1,0 +1,38 @@
+name: CrawlingObserverAPI_CD
+
+on:
+  workflow_run:
+    workflows: ["StockAnalysisAPI_CI"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 'Checkout Github Action'
+        uses: actions/checkout@main
+
+      - name: 'Login via Constellation Ubuntu Server'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.SERVER_ADDR }}" >> ~/.ssh/known_hosts
+
+      - name: 'Copy project files to Remote Server'
+        run: |
+          # 원격 서버에 배포 폴더가 없으면 생성
+          ssh -p "${{ secrets.SERVER_PORT }}" "${{ secrets.SERVER_USERNAME }}"@"${{ secrets.SERVER_ADDR }}" "mkdir -p ~/dockers/CrawlingObserverAPI/service"
+          # rsync로 프로젝트 전체 파일을 로컬에서 원격 서버로 복사
+          rsync -avz -e "ssh -p ${{ secrets.SERVER_PORT }}" ./* ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_ADDR }}:~/dockers/CrawlingObserverAPI/service
+
+      - name: 'Deploy using Docker on Remote Server'
+        run: |
+          ssh -p "${{ secrets.SERVER_PORT }}" "${{ secrets.SERVER_USERNAME }}"@"${{ secrets.SERVER_ADDR }}" << 'EOF'
+            cd ~/dockers/CrawlingObserverAPI/service
+            docker build -t docker:CrawlingObserverAPI_service .
+            docker stop CrawlingObserverAPI_service || true
+            docker rm CrawlingObserverAPI_service || true
+            docker run -d --name CrawlingObserverAPI_service docker:CrawlingObserverAPI_service
+          EOF

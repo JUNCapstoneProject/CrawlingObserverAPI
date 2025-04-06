@@ -3,7 +3,6 @@ import pandas as pd
 import time
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
-from lib.Crawling.config.required_fields import check_required_fields, merge_missing_fields
 
 from lib.Distributor.secretary.models.company import Company
 from lib.Distributor.secretary.session import get_session 

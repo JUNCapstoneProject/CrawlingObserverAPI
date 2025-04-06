@@ -1,0 +1,41 @@
+name: CrawlingObserverAPI_CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.11.9'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          if [ -f requirements.txt ];
+            then pip install -r requirements.txt;
+          fi
+      - name: Lint with flake8
+        run: |
+          # 아래 오류가 발생할 경우 빌드 중지
+          # F9 : 문법 오류
+          # E63 & E7 : 정의되지 않은 이름
+          # F82 : 잘못된 함수 사용
+          flake8 . --count --select=E9,E63,E7,F82 --show-source --statistics
+          # 'exit-zero'는 모든 에러를 경고로 처리
+          # Github 에디터는 한 줄에 127자까지만 보임
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      - name : Test with pytest
+        run: |
+          # tests 디렉토리 안의 test_*.py 또는 *_test.py를 실행시킴
+          python -m pytest tests
