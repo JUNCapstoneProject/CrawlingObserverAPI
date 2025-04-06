@@ -66,7 +66,7 @@ class CrawlerInterface(ABC):
 
                     # 테스트는 파일, 배포는 DB(주석처리로 선택)
                     self.save_to_file(result)
-                    self.save_to_db(result)
+                    # self.save_to_db(result)
 
                 else:
                     print(f"[WARNING]{self.__class__.__name__}: 크롤링 결과 없음! `crawl()`에서 반환된 데이터가 없습니다.")

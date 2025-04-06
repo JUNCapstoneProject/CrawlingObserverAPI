@@ -3,7 +3,7 @@ import pandas as pd
 import time
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
-from lib.Crawling.config.required_fields import is_valid_financial_row
+from lib.Crawling.config.required_fields import check_required_fields, merge_missing_fields
 
 from lib.Distributor.secretary.models.company import Company
 from lib.Distributor.secretary.session import get_session 
@@ -59,7 +59,7 @@ class YFinanceCrawler(CrawlerInterface):
                     ]:
                         try:
                             df_raw = accessor(stock)
-                            df_latest = self.extract_latest_or_fallback(df_raw, symbol, fin_type)
+                            df_latest = self.extract_recent_quarters(df_raw, symbol, fin_type)
 
                             # ✅ 분기별로 나눠서 저장
                             for _, row in df_latest.iterrows():
@@ -88,10 +88,13 @@ class YFinanceCrawler(CrawlerInterface):
             time.sleep(2)
 
         return results
-
-    def extract_latest_or_fallback(self, df: pd.DataFrame, symbol: str, financial_type: str):
+    
+    def extract_recent_quarters(self, df: pd.DataFrame, symbol: str, financial_type: str) -> pd.DataFrame:
+        """
+        최신 3개 분기 데이터를 그대로 반환 (fallback 없이)
+        """
         if df.empty:
-            raise ValueError(f"{financial_type} 원본 데이터가 비어 있음")
+            raise ValueError(f"[{symbol}] {financial_type} 원본 데이터가 비어 있음")
 
         df = df.T.reset_index().rename(columns={"index": "posted_at"})
         df["Symbol"] = symbol
@@ -99,16 +102,8 @@ class YFinanceCrawler(CrawlerInterface):
         df["financial_type"] = financial_type
 
         df_sorted = df.sort_values("posted_at", ascending=False)
+        return df_sorted.head(3).reset_index(drop=True)  # 최신 3개만 반환
 
-        valid_rows = []
-        for _, row in df_sorted.iterrows():
-            if is_valid_financial_row(row, financial_type):
-                valid_rows.append(row)
-            if len(valid_rows) == 2:
-                break
 
-        if not valid_rows:
-            raise ValueError(f"{financial_type}에 유효한 필드가 없음 (Symbol: {symbol})")
 
-        return pd.DataFrame(valid_rows).reset_index(drop=True)
 

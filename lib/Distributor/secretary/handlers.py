@@ -68,53 +68,54 @@ def store_macro(db, crawling_id, data):
         ))
 
 def store_stock(db, crawling_id, data):
+    from datetime import timedelta, datetime, time
+
     for row in data:
         ticker = row.get("Symbol")
         posted_at = row.get("posted_at")
 
-        # ticker 기준으로 기존 데이터 확인
-        existing = db.query(Stock).filter_by(ticker=ticker).first()
+        if not posted_at:
+            continue
 
+        # 전날 장 마감 시간 (16:00)
+        previous_day_close_time = datetime.combine(
+            posted_at.date() - timedelta(days=1),
+            time(hour=16, minute=0)
+        )
+
+        # 전날 종가: 마감 시간 이전 중 가장 늦은 데이터
         previous = (
             db.query(Stock)
-            .filter(Stock.ticker == ticker, Stock.posted_at < posted_at)
+            .filter(
+                Stock.ticker == ticker,
+                Stock.posted_at <= previous_day_close_time
+            )
             .order_by(Stock.posted_at.desc())
             .first()
         )
 
         previous_close = previous.close if previous else None
         current_close = row.get("Close")
-        change = 1
+        change = 0
 
         if previous_close and current_close:
             try:
-                change = round(float(current_close) / float(previous_close), 4)
+                change = round((float(current_close) / float(previous_close) - 1) * 100, 2)
             except ZeroDivisionError:
-                change = 1  # 안전 처리
-        
-        if existing:
-            # 업데이트
-            existing.crawling_id = crawling_id
-            existing.posted_at = row.get("posted_at")
-            existing.open = row.get("Open")
-            existing.high = row.get("High")
-            existing.low = row.get("Low")
-            existing.close = row.get("Close")
-            existing.volume = row.get("Volume")
-            existing.change = change
-        else:
-            # 삽입
-            db.add(Stock(
-                crawling_id=crawling_id,
-                ticker=ticker,
-                posted_at=row.get("posted_at"),
-                open=row.get("Open"),
-                high=row.get("High"),
-                low=row.get("Low"),
-                close=row.get("Close"),
-                volume=row.get("Volume"),
-                change=change
-            ))
+                change = 0
+
+        # 새 데이터 삽입
+        db.add(Stock(
+            crawling_id=crawling_id,
+            ticker=ticker,
+            posted_at=posted_at,
+            open=row.get("Open"),
+            high=row.get("High"),
+            low=row.get("Low"),
+            close=current_close,
+            volume=row.get("Volume"),
+            change=change
+        ))
 
 
 def store_financials_common(db, crawling_id, row):
