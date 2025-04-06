@@ -7,6 +7,9 @@ from tqdm import tqdm
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 from lib.Distributor.secretary.models.company import Company
 from lib.Distributor.secretary.session import get_session 
+from lib.Exceptions.exceptions import *
+
+
 from typing import List, Optional
 
 def get_symbols_from_db(interval: str, limit: Optional[int] = None) -> Optional[List[str]]:
@@ -72,22 +75,27 @@ class YFinanceStockCrawler(CrawlerInterface):
             futures = {executor.submit(self._crawl_batch, batch): batch for batch in batches}
 
             for future in as_completed(futures):
-                batch = futures[future]
                 try:
                     batch_results = future.result()
                     results.extend(batch_results)
+                except BatchProcessingException as e:
+                    for symbol in futures[future]:
+                        results.append({
+                            "tag": self.tag,
+                            "log": {"crawling_type": self.tag, "status_code": e.status_code},
+                            "fail_log": {"err_message": str(e)}
+                        })
                 except Exception as e:
-                    for _ in batch:
+                    for symbol in futures[future]:
                         results.append({
                             "tag": self.tag,
                             "log": {"crawling_type": self.tag, "status_code": 500},
-                            "fail_log": {"err_message": f"배치 처리 중 예외: {str(e)}"}
+                            "fail_log": {"err_message": f"배치 처리 중 알 수 없는 오류: {str(e)}"}
                         })
-                        
-                progress_bar.update(1)  # 배치 하나 끝날 때마다 한 칸 진행
+
+                progress_bar.update(1)
 
         progress_bar.close()
-
         return results
 
     def _crawl_batch(self, batch):
@@ -95,42 +103,42 @@ class YFinanceStockCrawler(CrawlerInterface):
 
         try:
             tickers = yf.Tickers(" ".join(batch))
+        except Exception as e:
+            raise BatchProcessingException(f"yf.Tickers 호출 실패: {str(e)}", source=batch)
 
-            for symbol in batch:
-                try:
-                    stock = tickers.tickers.get(symbol)
-                    if not stock:
-                        raise ValueError("해당 종목을 찾을 수 없음")
+        for symbol in batch:
+            try:
+                stock = tickers.tickers.get(symbol)
+                if not stock:
+                    raise DataNotFoundException("해당 종목을 찾을 수 없음", source=symbol)
 
-                    df = stock.history(period="1d", interval=self.interval, prepost=True)[['Open', 'High', 'Low', 'Close', 'Volume']]
-                    if df.empty:
-                        raise ValueError("Empty DataFrame (데이터 없음)")
+                df = stock.history(period="1d", interval=self.interval, prepost=True)[['Open', 'High', 'Low', 'Close', 'Volume']]
+                if df.empty:
+                    raise DataNotFoundException("Empty DataFrame (거래 데이터 없음)", source=symbol)
 
-                    df = df.tail(1).reset_index()
-                    df.rename(columns={"Datetime": "posted_at"}, inplace=True)
-                    df["Symbol"] = symbol
+                df = df.tail(1).reset_index()
+                df.rename(columns={"Datetime": "posted_at"}, inplace=True)
+                df["Symbol"] = symbol
 
-                    batch_results.append({
-                        "tag": self.tag,
-                        "log": {"crawling_type": self.tag, "status_code": 200},
-                        "df": df
-                    })
+                batch_results.append({
+                    "tag": self.tag,
+                    "log": {"crawling_type": self.tag, "status_code": 200},
+                    "df": df
+                })
 
-                except Exception as symbol_error:
-                    batch_results.append({
-                        "tag": self.tag,
-                        "log": {"crawling_type": self.tag, "status_code": 500},
-                        "fail_log": {"err_message": str(symbol_error)}
-                    })
-
-                time.sleep(random.uniform(0.1, 0.4))
-
-        except Exception as batch_error:
-            for symbol in batch:
+            except CrawlerException as e:
+                batch_results.append({
+                    "tag": self.tag,
+                    "log": {"crawling_type": self.tag, "status_code": e.status_code},
+                    "fail_log": {"err_message": str(e)}
+                })
+            except Exception as e:
                 batch_results.append({
                     "tag": self.tag,
                     "log": {"crawling_type": self.tag, "status_code": 500},
-                    "fail_log": {"err_message": f"배치 전체 실패: {str(batch_error)}"}
+                    "fail_log": {"err_message": f"{symbol} 처리 중 알 수 없는 오류: {str(e)}"}
                 })
+
+            time.sleep(random.uniform(0.1, 0.4))
 
         return batch_results
