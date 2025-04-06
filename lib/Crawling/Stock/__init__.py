@@ -5,13 +5,15 @@ def run():
 
     # 설정 정보를 매핑하여 관리
     crawler_configs = {
-        "YFinanceStock": YFinanceStockCrawler
+        "YFinanceStock_1m": {"cls": YFinanceStockCrawler, "kwargs": {"interval": "1m"}},
+        "YFinanceStock_5m": {"cls": YFinanceStockCrawler, "kwargs": {"interval": "5m"}},
+        "YFinanceStock_15m": {"cls": YFinanceStockCrawler, "kwargs": {"interval": "15m"}}
     }
 
-    # 크롤러 인스턴스 생성 (API 키가 있는 경우에만 전달)
+    # 크롤러 인스턴스 생성
     crawlers = [
-        cls(name)
-        for name, cls in crawler_configs.items()
+        config["cls"](name, **config["kwargs"])
+        for name, config in crawler_configs.items()
     ]
 
     # 병렬 실행

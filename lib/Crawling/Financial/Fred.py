@@ -1,13 +1,13 @@
-from ..Interfaces.Crawler import CrawlerInterface
 from fredapi import Fred
 import pandas as pd
+
+from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 
 class FredCrawler(CrawlerInterface):
     def __init__(self, name, api_key):
         super().__init__(name)
         self.key = api_key
         self.fred = Fred(api_key=self.key)
-
         # 가져올 FRED 데이터 목록 (지표명 : FRED Series ID)
         self.series_dict = {
             "Nominal GDP": "GDP",
@@ -24,33 +24,54 @@ class FredCrawler(CrawlerInterface):
             "Personal Consumption Expenditures (PCE)": "PCE",
             "Consumer Confidence Index (CCI)": "UMCSENT",
         }
+        self.tag = "macro"
 
     def crawl(self):
-        """FRED 데이터를 가져와서 pandas DataFrame으로 출력"""
-        macro_data = {}
+        """FRED 데이터를 지표별로 분리하여 최신 값만 반환"""
+        results = []
 
         for name, series_id in self.series_dict.items():
             try:
-                data = self.fred.get_series(series_id)
-                macro_data[name] = data
+                # 시계열 데이터 가져오기
+                data_series = self.fred.get_series(series_id)
+                data_series = data_series.dropna().ffill()
+                data_series.index = pd.to_datetime(data_series.index)
+
+                if data_series.empty:
+                    raise ValueError("해당 시리즈 데이터 없음")
+
+                # 최신 데이터 1건만 추출
+                latest_date = data_series.index[-1]
+                latest_value = data_series.iloc[-1]
+
+                row = {
+                    "index_name": name,
+                    "country": "US",
+                    "index_value": str(latest_value),
+                    "posted_at": latest_date.to_pydatetime()
+                }
+
+                results.append({
+                    "tag": self.tag,
+                    "log": {
+                        "crawling_type": self.tag,
+                        "status_code": 200
+                    },
+                    "df": pd.DataFrame([row])
+                })
+
             except Exception as e:
-                print(f"⚠️ Error fetching {name} ({series_id}): {e}")
+                results.append({
+                    "tag": self.tag,
+                    "log": {
+                        "crawling_type": self.tag,
+                        "status_code": 500
+                    },
+                    "fail_log": {
+                        "index_name": name,
+                        "err_message": f"{series_id} - {str(e)}"
+                    }
+                })
 
-        # DataFrame 변환
-        macro_df = pd.DataFrame(macro_data)
-        macro_df.index.name = "Date"
+        return results
 
-        # 🔥 최근 값만 가져오기: NaN이 아닌 가장 최근 데이터 선택
-        macro_df = macro_df.dropna(how="all")  # 모든 컬럼이 NaN인 행 제거
-        macro_df = macro_df.ffill()  # 결측값을 가장 가까운 이전 값으로 채움
-
-        # df.to_csv("fred_macro_data.csv")
-        # print("✅ 데이터 저장 완료: `fred_macro_data.csv`")
-
-        # # 터미널 출력
-        # print("\nFRED 거시경제 데이터 (최근 5개)")
-        # print(df.tail())  # 최근 5개 행만 출력
-
-        print(f"{self.__class__.__name__}: 데이터 수집 완료")  
-        
-        return {"df": macro_df, "tag": "macro"}

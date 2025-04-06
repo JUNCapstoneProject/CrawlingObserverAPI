@@ -1,55 +1,136 @@
 import yfinance as yf
-from ..Interfaces.Crawler import CrawlerInterface
-from ..config.LoadConfig import load_config
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
-import pandas as pd
+import random
+from tqdm import tqdm
+
+from lib.Crawling.Interfaces.Crawler import CrawlerInterface
+from lib.Distributor.secretary.models.company import Company
+from lib.Distributor.secretary.session import get_session 
+from typing import List, Optional
+
+def get_symbols_from_db(interval: str, limit: Optional[int] = None) -> Optional[List[str]]:
+    INTERVAL_SPLIT_CONFIG = {
+        "1m": {"offset": 0, "limit": 100},
+        "5m": {"offset": 100, "limit": 900},
+        "15m": {"offset": 1000, "limit": None},
+    }
+
+    # ✅ 예외 처리: limit이 주어졌는데 1m이 아닌 경우 None 반환
+    if limit is not None and interval != "1m":
+        return None
+
+    # ✅ 쿼리 실행
+    with get_session() as session:
+        query = session.query(Company.ticker).order_by(Company.company_id.asc())
+
+        # ▶️ limit이 명시된 경우 (1m만 허용)
+        if limit is not None:
+            query = query.limit(limit)
+        
+        # ▶️ 인터벌 기반 offset/limit 처리
+        else:
+            config = INTERVAL_SPLIT_CONFIG.get(interval)
+            if not config:
+                raise ValueError(f"지원하지 않는 interval: {interval}")
+
+            if config["offset"]:
+                query = query.offset(config["offset"])
+            if config["limit"]:
+                query = query.limit(config["limit"])
+
+        # ✅ 결과 반환
+        results = query.all()
+        return [ticker[0] for ticker in results]
+
 
 class YFinanceStockCrawler(CrawlerInterface):
 
-    def __init__(self, name):
+    def __init__(self, name, interval="1m", verbose=False):
         super().__init__(name)
-        self.batch_size = 100
-        self.symbols = load_config("symbols_test.json")
+        self.batch_size = 20       # 한 스레드에 넘길 배치 크기
+        self.max_workers = 5      # 동시 실행 스레드 수
+        self.symbols = get_symbols_from_db(interval, limit=5)
+        self.tag = "stock"
+        self.interval = interval
+        self.verbose = verbose
 
     def crawl(self):
-        """ yfinance에서 주가 데이터를 가져와 반환하는 함수 """
-        try:
-            total_symbols = len(self.symbols)
-            stock_data = []  # 결과 저장 리스트
+        results = []
 
-            for batch_number, start_idx in enumerate(range(0, total_symbols, self.batch_size), start=1):
-                batch = self.symbols[start_idx:start_idx + self.batch_size]  # 배치 단위로 나누기
-                
+        if not self.symbols:
+            return None  # 빈 리스트 대신 None 반환
+
+        total_symbols = len(self.symbols)
+
+        # 배치로 나누기
+        batches = [self.symbols[i:i + self.batch_size] for i in range(0, total_symbols, self.batch_size)]
+
+        progress_bar = tqdm(total=len(batches), desc=f"[{self.name}][{self.interval}] 전체 진행률", disable=not self.verbose)
+
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {executor.submit(self._crawl_batch, batch): batch for batch in batches}
+
+            for future in as_completed(futures):
+                batch = futures[future]
                 try:
-                    tickers = yf.Tickers(" ".join(batch))  # 여러 종목 데이터 가져오기
-
-                    for symbol in batch:
-                        stock = tickers.tickers.get(symbol)
-                        
-                        if not stock:
-                            continue
-
-                        # 최근 1개월 (1mo) 주가 데이터 가져오기
-                        df = stock.history(period="1mo")[['Open', 'High', 'Low', 'Close', 'Volume']]
-                        if df.empty:
-                            continue
-                        
-                        df = df.reset_index()
-                        df["Symbol"] = symbol  # 종목 코드 추가
-                        stock_data.append(df)
-
-                    time.sleep(2)  # API Rate Limit 방지
-
+                    batch_results = future.result()
+                    results.extend(batch_results)
                 except Exception as e:
-                    print(f"⚠️ Error in batch {batch_number}: {e}")
+                    for _ in batch:
+                        results.append({
+                            "tag": self.tag,
+                            "log": {"crawling_type": self.tag, "status_code": 500},
+                            "fail_log": {"err_message": f"배치 처리 중 예외: {str(e)}"}
+                        })
+                        
+                progress_bar.update(1)  # 배치 하나 끝날 때마다 한 칸 진행
 
-            # 모든 데이터를 하나의 DataFrame으로 병합
-            stock_prices_df = pd.concat(stock_data, axis=0) if stock_data else pd.DataFrame()
+        progress_bar.close()
 
-            print(f"{self.__class__.__name__}: 주가 데이터 수집 완료")
-            
-            return {"df": stock_prices_df, "tag": "stock"}
+        return results
 
-        except Exception as e:
-            print(f"❌ YFinanceStockCrawler: 전체 크롤링 과정에서 오류 발생 - {e}")
-            return []
+    def _crawl_batch(self, batch):
+        batch_results = []
+
+        try:
+            tickers = yf.Tickers(" ".join(batch))
+
+            for symbol in batch:
+                try:
+                    stock = tickers.tickers.get(symbol)
+                    if not stock:
+                        raise ValueError("해당 종목을 찾을 수 없음")
+
+                    df = stock.history(period="1d", interval=self.interval, prepost=True)[['Open', 'High', 'Low', 'Close', 'Volume']]
+                    if df.empty:
+                        raise ValueError("Empty DataFrame (데이터 없음)")
+
+                    df = df.tail(1).reset_index()
+                    df.rename(columns={"Datetime": "posted_at"}, inplace=True)
+                    df["Symbol"] = symbol
+
+                    batch_results.append({
+                        "tag": self.tag,
+                        "log": {"crawling_type": self.tag, "status_code": 200},
+                        "df": df
+                    })
+
+                except Exception as symbol_error:
+                    batch_results.append({
+                        "tag": self.tag,
+                        "log": {"crawling_type": self.tag, "status_code": 500},
+                        "fail_log": {"err_message": str(symbol_error)}
+                    })
+
+                time.sleep(random.uniform(0.1, 0.4))
+
+        except Exception as batch_error:
+            for symbol in batch:
+                batch_results.append({
+                    "tag": self.tag,
+                    "log": {"crawling_type": self.tag, "status_code": 500},
+                    "fail_log": {"err_message": f"배치 전체 실패: {str(batch_error)}"}
+                })
+
+        return batch_results

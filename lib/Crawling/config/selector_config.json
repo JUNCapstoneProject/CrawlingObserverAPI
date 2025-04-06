@@ -2,6 +2,7 @@
   "YahooFinance": {
     "base_url": "https://finance.yahoo.com",
     "url": "https://finance.yahoo.com/topic/stock-market-news/",
+    "next_page": null,
     "main_container_selectors": [
       "div.container.yf-1jvnfga",
       "section.container.sz-small.stream.vertical"
@@ -42,6 +43,7 @@
   "InvestingNews": {
     "base_url": "https://www.investing.com",
     "url": "https://www.investing.com/news/stock-market-news",
+    "next_page":"div.mb-4.flex.select-none.justify-between > a:last-of-type",
     "main_container_selectors": [
       "div.news-analysis-v2_content__z0iLP"
     ],
@@ -78,10 +80,10 @@
   },
   "InvestingReports": {
     "base_url": "https://www.investing.com",
-    "url": "https://www.investing.com/analysis",
+    "url": "https://www.investing.com/analysis/stock-markets",
+    "next_page":"#paginationWrap div.sideDiv:last-of-type a",
     "main_container_selectors": [
-      ".flex.w-full.flex-col .grid.grid-cols-1 .flex.flex-row.border-b .flex.w-full.flex-col.overflow-hidden",
-      "#__next div.min-w-0 div.mt-10.inline-block.w-full ul > li > article > div"
+      "#contentSection > article > div.textDiv"
     ],
     "content_container_selectors": [
       "div.min-w-0"
@@ -89,19 +91,14 @@
     "selectors": {
       "main": {
         "href": [
-          "a.text-inv-blue-500.font-semibold",
-          "a.block.text-base.font-bold"
+          "a.title"
         ],
         "title": [
-          "a.text-inv-blue-500.font-semibold",
-          "a.block.text-base.font-bold"
+          "a.title"
         ],
         "author": [
-          "a.text-inv-blue-500.truncate",
-          "a[data-test='article-provider-link']"
-        ],
-        "posted_at": [
-          "time[data-test='article-publish-date']"
+          "span.articleDetails a",
+          "span.articleDetails span"
         ]
       },
       "contents": {
@@ -110,6 +107,9 @@
         ],
         "content": [
           "div.article_container p"
+        ],
+        "posted_at": [
+          "div.mx-0.mt-1 > div.mt-2.flex.flex-col.gap-2.text-xs > div > div > span"
         ]
       }
     }

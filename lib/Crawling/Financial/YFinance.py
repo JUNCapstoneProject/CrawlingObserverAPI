@@ -1,70 +1,108 @@
-from ..Interfaces.Crawler import CrawlerInterface
-from ..config.LoadConfig import load_config
 import yfinance as yf
 import pandas as pd
 import time
+
+from lib.Crawling.Interfaces.Crawler import CrawlerInterface
+
+from lib.Distributor.secretary.models.company import Company
+from lib.Distributor.secretary.session import get_session 
+from typing import List
+
+def get_symbols_from_db(limit: int = None) -> List[str]:
+    with get_session() as session:
+        query = session.query(Company.ticker).order_by(Company.company_id.asc())
+        if limit is not None:
+            query = query.limit(limit)
+        results = query.all()
+        return [ticker[0] for ticker in results]
+
+
 
 class YFinanceCrawler(CrawlerInterface):
 
     def __init__(self, name):
         super().__init__(name)
         self.batch_size = 100
-        self.symbols = load_config("symbols_test.json")
+        self.symbols = get_symbols_from_db(limit=5)
+        self.tag = "financials"
 
     def crawl(self):
-        """ yfinance에서 재무제표 데이터를 가져와 반환하는 함수 """
-        try:
-            total_symbols = len(self.symbols)
-            # total_batches = (total_symbols + self.batch_size - 1) // self.batch_size  # 총 배치 수 계산
+        results = []
 
-            financial_data = {
-                "Income Statement": [],
-                "Balance Sheet": [],
-                "Cash Flow Statement": []
-            }
+        for start in range(0, len(self.symbols), self.batch_size):
+            batch = self.symbols[start:start + self.batch_size]
 
-            for batch_number, start_idx in enumerate(range(0, total_symbols, self.batch_size), start=1):
-                batch = self.symbols[start_idx:start_idx + self.batch_size]  # 100개씩 나누기
-                # print(f"⏳ Processing batch {batch_number}/{total_batches} ({len(batch)} symbols)")
+            try:
+                tickers = yf.Tickers(" ".join(batch))
+            except Exception as e:
+                for symbol in batch:
+                    for tag in ["income_statement", "balance_sheet", "cash_flow"]:
+                        results.append({
+                            "tag": tag,
+                            "log": {"crawling_type": "financials", "status_code": 500},
+                            "fail_log": {"err_message": f"yf.Tickers 실패: {str(e)}"}
+                        })
+                continue
 
+            for symbol in batch:
                 try:
-                    tickers = yf.Tickers(" ".join(batch))  # `yfinance`에서 여러 개 요청 가능
-                    
-                    for symbol in batch:
-                        stock = tickers.tickers.get(symbol)
+                    stock = tickers.tickers.get(symbol)
+                    if not stock:
+                        raise ValueError("해당 symbol에 대한 데이터 없음")
 
-                        if not stock or stock.financials.empty:
-                            continue
+                    # 각 재무제표 유형별 처리
+                    for fin_type, accessor in [
+                        ("income_statement", lambda s: s.quarterly_financials),
+                        ("balance_sheet", lambda s: s.quarterly_balance_sheet),
+                        ("cash_flow", lambda s: s.quarterly_cashflow)
+                    ]:
+                        try:
+                            df_raw = accessor(stock)
+                            df_latest = self.extract_recent_quarters(df_raw, symbol, fin_type)
 
-                        # 🔥 종목명을 인덱스로 설정하여 DataFrame 리스트에 추가 (가장 최근 데이터만)
-                        financial_data["Income Statement"].append(
-                            stock.financials.T.reset_index().iloc[:1].assign(Symbol=symbol)
-                        )
-                        financial_data["Balance Sheet"].append(
-                            stock.balance_sheet.T.reset_index().iloc[:1].assign(Symbol=symbol)
-                        )
-                        financial_data["Cash Flow Statement"].append(
-                            stock.cashflow.T.reset_index().iloc[:1].assign(Symbol=symbol)
-                        )
+                            # ✅ 분기별로 나눠서 저장
+                            for _, row in df_latest.iterrows():
+                                row_dict = {k: (None if pd.isna(v) else v) for k, v in row.to_dict().items()}  # NaN 처리
+                                results.append({
+                                    "tag": fin_type,
+                                    "log": {"crawling_type": "financials", "status_code": 200},
+                                    "df": [row_dict]
+                                })
 
-                    time.sleep(2)  # Rate Limit 방지
-            
-                except Exception as e:
-                    print(f"⚠️ Error in batch {batch_number}: {e}")
+                        except Exception as e:
+                            results.append({
+                                "tag": fin_type,
+                                "log": {"crawling_type": "financials", "status_code": 500},
+                                "fail_log": {"err_message": str(e)}
+                            })
 
-            # 🔥 수정된 부분: pd.concat() 사용하여 리스트를 단일 DataFrame으로 변환
-            income_statement_df = pd.concat(financial_data["Income Statement"], axis=0) if financial_data["Income Statement"] else pd.DataFrame()
-            balance_sheet_df = pd.concat(financial_data["Balance Sheet"], axis=0) if financial_data["Balance Sheet"] else pd.DataFrame()
-            cash_flow_statement_df = pd.concat(financial_data["Cash Flow Statement"], axis=0) if financial_data["Cash Flow Statement"] else pd.DataFrame()
+                except Exception as symbol_level_error:
+                    for tag in ["income_statement", "balance_sheet", "cash_flow"]:
+                        results.append({
+                            "tag": tag,
+                            "log": {"crawling_type": "financials", "status_code": 500},
+                            "fail_log": {"err_message": f"심볼 수준 실패: {str(symbol_level_error)}"}
+                        })
 
-            print(f"{self.__class__.__name__}: 데이터 수집 완료")  
+            time.sleep(2)
 
-            return [
-                {"df": income_statement_df, "tag": "income_statement"},
-                {"df": balance_sheet_df, "tag": "balance_sheet"},
-                {"df": cash_flow_statement_df, "tag": "cash_flow"},
-            ]
+        return results
+    
+    def extract_recent_quarters(self, df: pd.DataFrame, symbol: str, financial_type: str) -> pd.DataFrame:
+        """
+        최신 3개 분기 데이터를 그대로 반환 (fallback 없이)
+        """
+        if df.empty:
+            raise ValueError(f"[{symbol}] {financial_type} 원본 데이터가 비어 있음")
 
-        except Exception as e:
-            print(f"❌ YFinanceCrawler: 전체 크롤링 과정에서 오류 발생 - {e}")
-            return []
+        df = df.T.reset_index().rename(columns={"index": "posted_at"})
+        df["Symbol"] = symbol
+        df["posted_at"] = pd.to_datetime(df["posted_at"])
+        df["financial_type"] = financial_type
+
+        df_sorted = df.sort_values("posted_at", ascending=False)
+        return df_sorted.head(3).reset_index(drop=True)  # 최신 3개만 반환
+
+
+
+
