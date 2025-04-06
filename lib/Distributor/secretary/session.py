@@ -14,7 +14,7 @@ loaded = load_dotenv(dotenv_path=env_path)
 # print("📦 dotenv loaded:", loaded)
 
 # ✅ 환경변수 읽기
-db_url = os.getenv("DB_URL")
+db_url = os.getenv("DB_URL", "sqlite:///:memory:")
 # print("📌 Loaded DB_URL:", db_url)
 
 engine = create_engine(db_url, echo=False, pool_pre_ping=True)
