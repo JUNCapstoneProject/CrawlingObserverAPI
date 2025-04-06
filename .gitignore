@@ -19,3 +19,6 @@ pyproject.toml
 **/Datas/
 
 **/.env
+
+CrawlingObserverAPI/lib/Distributor/secretary/utils/create_tables.py
+CrawlingObserverAPI/lib/Distributor/secretary/utils/store_company_table.py
