@@ -11,7 +11,7 @@ from lib.Crawling.config.LoadConfig import load_config
 
 
 class CrawlerInterface(ABC):
-    """ 모든 크롤러의 최상위 인터페이스 (공통 스케줄 포함) """
+    """모든 크롤러의 최상위 인터페이스 (공통 스케줄 포함)"""
 
     def __init__(self, name):
         """
@@ -21,7 +21,7 @@ class CrawlerInterface(ABC):
         self.schedule = self.load_schedule(self.name)  # name을 이용해 스케줄 로드
 
     def load_schedule(self, name):
-        """ JSON에서 크롤링 스케줄 불러오기 """
+        """JSON에서 크롤링 스케줄 불러오기"""
         schedule_config = load_config("schedule_config.json")
         return schedule_config.get(name, {})
 
@@ -36,7 +36,7 @@ class CrawlerInterface(ABC):
         #     if start_hour <= current_hour <= end_hour:
         #         return True, interval
         # return False, None
-        return True, 10 # 테스트용 임시
+        return True, 10  # 테스트용 임시
 
     def run(self):
         # print(f"DEBUG: {self.__class__.__name__}.run() 실행됨")
@@ -57,7 +57,11 @@ class CrawlerInterface(ABC):
                         if isinstance(df, pd.DataFrame):
                             if "posted_at" in df.columns:
                                 df["posted_at"] = pd.to_datetime(df["posted_at"])
-                            result_item["df"] = df.reset_index(drop=True).replace({np.nan: None}).to_dict(orient="records")
+                            result_item["df"] = (
+                                df.reset_index(drop=True)
+                                .replace({np.nan: None})
+                                .to_dict(orient="records")
+                            )
 
                         elif isinstance(df, list):
                             for row in df:
@@ -83,9 +87,11 @@ class CrawlerInterface(ABC):
 
     def save_to_file(self, result):
 
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # lib/Crawling/
+        base_dir = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )  # lib/Crawling/
         temp_dir = os.path.join(base_dir, "Datas")
-        
+
         tag = result[0].get("tag", "unknown") if result else "unknown"
         if tag == "income_statement":
             tag = "financials"
@@ -112,8 +118,7 @@ class CrawlerInterface(ABC):
         finally:
             db.close()
 
-
     @abstractmethod
     def crawl(self):
-        """ 크롤링 실행 메서드 (각 크롤러에서 구현) """
+        """크롤링 실행 메서드 (각 크롤러에서 구현)"""
         pass

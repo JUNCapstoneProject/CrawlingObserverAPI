@@ -9,17 +9,15 @@ from lib.Crawling.Interfaces.Crawler_handlers import EXTRACT_HANDLERS
 from lib.Exceptions.exceptions import *
 
 
-
 class CrawlerUsingRequest(CrawlerInterface):
     def __init__(self, name, selector_config):
         super().__init__(name)
         self.tag = None
         self.config = selector_config
-        self.max_articles = 10 # 크롤링할 뉴스 수
+        self.max_articles = 10  # 크롤링할 뉴스 수
         self.max_retries = 50  # 요청 재시도 횟수
         self.custom_handlers = {}
         self.use_pagination = bool(selector_config.get("next_page", False))
-
 
     # 사이트 보안 방식에 따라 자식 클래스에서 오버라이드
     def fetch_page(self, url=None):
@@ -34,15 +32,17 @@ class CrawlerUsingRequest(CrawlerInterface):
                 return {
                     "soup": BeautifulSoup(response.text, "html.parser"),
                     "status_code": response.status_code,
-                    "url": url
+                    "url": url,
                 }
 
             except requests.exceptions.RequestException as e:
                 retries += 1
                 if retries >= self.max_retries:
-                    raise ExternalAPIException("최대 재시도 초과 - 요청 실패", source=url) from e
+                    raise ExternalAPIException(
+                        "최대 재시도 초과 - 요청 실패", source=url
+                    ) from e
                 random_delay()
-        
+
     def crawl(self):
         results = []
         try:
@@ -51,7 +51,9 @@ class CrawlerUsingRequest(CrawlerInterface):
             target_url = fetch_result["url"]
 
             if not soup:
-                raise ParsingException("HTML 파싱 실패 또는 soup None", source=target_url)
+                raise ParsingException(
+                    "HTML 파싱 실패 또는 soup None", source=target_url
+                )
 
             articles = self.crawl_main(soup)
             if not articles:
@@ -67,8 +69,8 @@ class CrawlerUsingRequest(CrawlerInterface):
                     "log": {
                         "crawling_type": self.tag,
                         "status_code": 200,
-                        "target_url": href
-                    }
+                        "target_url": href,
+                    },
                 }
 
                 if article.get("content"):
@@ -81,28 +83,25 @@ class CrawlerUsingRequest(CrawlerInterface):
             return results
 
         except CrawlerException as e:
-            return [{
-                "tag": self.tag,
-                "log": {
-                    "crawling_type": self.tag,
-                    "status_code": e.status_code,
-                    "target_url": getattr(e, "source", None)
-                },
-                "fail_log": {
-                    "err_message": str(e)
+            return [
+                {
+                    "tag": self.tag,
+                    "log": {
+                        "crawling_type": self.tag,
+                        "status_code": e.status_code,
+                        "target_url": getattr(e, "source", None),
+                    },
+                    "fail_log": {"err_message": str(e)},
                 }
-            }]
+            ]
         except Exception as e:
-            return [{
-                "tag": self.tag,
-                "log": {
-                    "crawling_type": self.tag,
-                    "status_code": 500
-                },
-                "fail_log": {
-                    "err_message": f"알 수 없는 예외 발생: {str(e)}"
+            return [
+                {
+                    "tag": self.tag,
+                    "log": {"crawling_type": self.tag, "status_code": 500},
+                    "fail_log": {"err_message": f"알 수 없는 예외 발생: {str(e)}"},
                 }
-            }]
+            ]
 
     def crawl_main(self, soup):
         articles, seen_urls = [], set()
@@ -133,10 +132,7 @@ class CrawlerUsingRequest(CrawlerInterface):
                 if not article_content or not article_content.get("content"):
                     continue
 
-                article_data = {
-                    **main_data,
-                    **article_content
-                }
+                article_data = {**main_data, **article_content}
                 articles.append(article_data)
 
             if self.use_pagination:
@@ -153,11 +149,11 @@ class CrawlerUsingRequest(CrawlerInterface):
 
         if not article_soup:
             return None
-        
+
         content_container = self.extract_contentContainer(article_soup)
         if not content_container:
             return None
-        
+
         return self.extract_fields(content_container, "contents")
 
     def extract_mainContainer(self, soup):

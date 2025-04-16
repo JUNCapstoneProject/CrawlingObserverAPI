@@ -3,6 +3,7 @@ from sqlalchemy.dialects.mysql import VARCHAR
 
 from lib.Distributor.secretary.models.core import Base
 
+
 class Company(Base):
     __tablename__ = "company"
 

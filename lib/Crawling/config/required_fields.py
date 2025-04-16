@@ -7,19 +7,19 @@ REQUIRED_FIELDS = {
         "Operating Income",
         "Net Income",
         "EBITDA",
-        "Diluted EPS"
+        "Diluted EPS",
     ],
     "balance_sheet": [
         "Total Assets",
         "Total Liabilities Net Minority Interest",
-        "Stockholders Equity"
+        "Stockholders Equity",
     ],
     "cash_flow": [
         "Operating Cash Flow",
         "Investing Cash Flow",
         "Financing Cash Flow",
-        "Free Cash Flow"
-    ]
+        "Free Cash Flow",
+    ],
 }
 
 
@@ -50,7 +50,9 @@ def is_valid_financial_row(row: dict, statement_type: str) -> bool:
     return not check_required_fields(row, statement_type)
 
 
-def merge_missing_fields(base_row: dict, backup_rows: List[dict], statement_type: str) -> dict:
+def merge_missing_fields(
+    base_row: dict, backup_rows: List[dict], statement_type: str
+) -> dict:
     """
     base_row의 누락된 필드를 backup_rows에서 가능한 한 채워 넣음
     - 디버깅 로그 포함

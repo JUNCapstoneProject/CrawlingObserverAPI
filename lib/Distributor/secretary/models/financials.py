@@ -3,20 +3,32 @@ from sqlalchemy.dialects.mysql import VARCHAR
 
 from lib.Distributor.secretary.models.core import Base
 
+
 # 📘 financials 테이블
 class FinancialStatement(Base):
     __tablename__ = "financials"
 
-    crawling_id = Column(VARCHAR(64), ForeignKey("crawling_logs.crawling_id"), primary_key=True, nullable=False)
+    crawling_id = Column(
+        VARCHAR(64),
+        ForeignKey("crawling_logs.crawling_id"),
+        primary_key=True,
+        nullable=False,
+    )
     company = Column(VARCHAR(20), nullable=False)
     financial_type = Column(VARCHAR(255), nullable=False)
     posted_at = Column(DateTime, nullable=False)
     ai_analysis = Column(VARCHAR(512), nullable=True)
 
+
 class IncomeStatement(Base):
     __tablename__ = "income_statement"
 
-    crawling_id = Column(VARCHAR(64), ForeignKey("financials.crawling_id"), primary_key=True, nullable=False)
+    crawling_id = Column(
+        VARCHAR(64),
+        ForeignKey("financials.crawling_id"),
+        primary_key=True,
+        nullable=False,
+    )
 
     # ✅ 반드시 필요한 항목
     total_revenue = Column(DECIMAL(18, 2), nullable=False)
@@ -41,11 +53,15 @@ class IncomeStatement(Base):
     average_dilution_earnings = Column(DECIMAL(18, 2), nullable=True)
 
 
-
 class BalanceSheet(Base):
     __tablename__ = "balance_sheet"
 
-    crawling_id = Column(VARCHAR(64), ForeignKey("financials.crawling_id"), primary_key=True, nullable=False)
+    crawling_id = Column(
+        VARCHAR(64),
+        ForeignKey("financials.crawling_id"),
+        primary_key=True,
+        nullable=False,
+    )
 
     # ✅ 필수 항목
     total_assets = Column(DECIMAL(18, 2), nullable=False)
@@ -59,7 +75,9 @@ class BalanceSheet(Base):
     cash_and_cash_equivalents = Column(DECIMAL(18, 2), nullable=True)
     accounts_receivable = Column(DECIMAL(18, 2), nullable=True)
     inventory = Column(DECIMAL(18, 2), nullable=True)
-    cash_cash_equivalents_and_short_term_investments = Column(DECIMAL(18, 2), nullable=True)
+    cash_cash_equivalents_and_short_term_investments = Column(
+        DECIMAL(18, 2), nullable=True
+    )
 
     # ❌ 자주 누락되는 항목
     cash_equivalents = Column(DECIMAL(18, 2), nullable=True)
@@ -71,11 +89,15 @@ class BalanceSheet(Base):
     treasury_stock = Column(DECIMAL(18, 2), nullable=True)
 
 
-
 class CashFlow(Base):
     __tablename__ = "cash_flow"
 
-    crawling_id = Column(VARCHAR(64), ForeignKey("financials.crawling_id"), primary_key=True, nullable=False)
+    crawling_id = Column(
+        VARCHAR(64),
+        ForeignKey("financials.crawling_id"),
+        primary_key=True,
+        nullable=False,
+    )
 
     # ✅ 반드시 필요한 항목
     operating_cash_flow = Column(DECIMAL(18, 2), nullable=False)

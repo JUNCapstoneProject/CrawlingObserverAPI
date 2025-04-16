@@ -2,6 +2,7 @@ import os
 import datetime
 import traceback
 
+
 def save_traceback_to_file(tag: str, idx: int, e: Exception):
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     log_dir = os.path.join(base_dir, "Logs")

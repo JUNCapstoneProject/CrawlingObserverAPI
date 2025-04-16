@@ -1,62 +1,61 @@
 {
-  "_comment":{
+  "_comment": {
     "form": ["start_time", "end_time", "interval(minute)"]
   },
-    "YahooFinance": {
-      "Monday": [9, 18, 60],
-      "Tuesday": [9, 18, 60],
-      "Wednesday": [9, 18, 60],
-      "Thursday": [9, 18, 60],
-      "Friday": [9, 18, 60]
-    },
-    "InvestingNews": {
-      "Monday": [9, 18, 60],
-      "Tuesday": [9, 18, 60],
-      "Wednesday": [9, 18, 60],
-      "Thursday": [9, 18, 60],
-      "Friday": [9, 18, 60]
-    },
-    "InvestingReports": {
-      "Monday": [9, 18, 60],
-      "Tuesday": [9, 18, 60],
-      "Wednesday": [9, 18, 60],
-      "Thursday": [9, 18, 60],
-      "Friday": [9, 18, 60]
-    },
-    "Fred": {
-      "Monday": [9, 18, 60],
-      "Tuesday": [9, 18, 60],
-      "Wednesday": [9, 18, 60],
-      "Thursday": [9, 18, 60],
-      "Friday": [9, 18, 60]
-    },
-    "YFinance": {
-      "Monday": [9, 18, 60],
-      "Tuesday": [9, 18, 60],
-      "Wednesday": [9, 18, 60],
-      "Thursday": [9, 18, 60],
-      "Friday": [9, 18, 60]
-    },
-    "YFinanceStock_1m": {
-      "Monday": [0, 24, 1],
-      "Tuesday": [0, 24, 1],
-      "Wednesday": [0, 24, 1],
-      "Thursday": [0, 24, 1],
-      "Friday": [0, 24, 1]
-    },
-    "YFinanceStock_5m": {
-      "Monday": [0, 24, 5],
-      "Tuesday": [0, 24, 5],
-      "Wednesday": [0, 24, 5],
-      "Thursday": [0, 24, 5],
-      "Friday": [0, 24, 5]
-    },
-    "YFinanceStock_15m": {
-      "Monday": [0, 24, 15],
-      "Tuesday": [0, 24, 15],
-      "Wednesday": [0, 24, 15],
-      "Thursday": [0, 24, 15],
-      "Friday": [0, 24, 15]
-    }
+  "YahooFinance": {
+    "Monday": [9, 18, 60],
+    "Tuesday": [9, 18, 60],
+    "Wednesday": [9, 18, 60],
+    "Thursday": [9, 18, 60],
+    "Friday": [9, 18, 60]
+  },
+  "InvestingNews": {
+    "Monday": [9, 18, 60],
+    "Tuesday": [9, 18, 60],
+    "Wednesday": [9, 18, 60],
+    "Thursday": [9, 18, 60],
+    "Friday": [9, 18, 60]
+  },
+  "InvestingReports": {
+    "Monday": [9, 18, 60],
+    "Tuesday": [9, 18, 60],
+    "Wednesday": [9, 18, 60],
+    "Thursday": [9, 18, 60],
+    "Friday": [9, 18, 60]
+  },
+  "Fred": {
+    "Monday": [9, 18, 60],
+    "Tuesday": [9, 18, 60],
+    "Wednesday": [9, 18, 60],
+    "Thursday": [9, 18, 60],
+    "Friday": [9, 18, 60]
+  },
+  "YFinance": {
+    "Monday": [9, 18, 60],
+    "Tuesday": [9, 18, 60],
+    "Wednesday": [9, 18, 60],
+    "Thursday": [9, 18, 60],
+    "Friday": [9, 18, 60]
+  },
+  "YFinanceStock_1m": {
+    "Monday": [0, 24, 1],
+    "Tuesday": [0, 24, 1],
+    "Wednesday": [0, 24, 1],
+    "Thursday": [0, 24, 1],
+    "Friday": [0, 24, 1]
+  },
+  "YFinanceStock_5m": {
+    "Monday": [0, 24, 5],
+    "Tuesday": [0, 24, 5],
+    "Wednesday": [0, 24, 5],
+    "Thursday": [0, 24, 5],
+    "Friday": [0, 24, 5]
+  },
+  "YFinanceStock_15m": {
+    "Monday": [0, 24, 15],
+    "Tuesday": [0, 24, 15],
+    "Wednesday": [0, 24, 15],
+    "Thursday": [0, 24, 15],
+    "Friday": [0, 24, 15]
   }
-  
+}
