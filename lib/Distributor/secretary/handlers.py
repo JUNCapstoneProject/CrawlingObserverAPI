@@ -71,54 +71,82 @@ def store_macro(db, crawling_id, data):
 
 
 def store_stock(db, crawling_id, data):
-    from datetime import timedelta, datetime, time
+    from collections import defaultdict
+    from datetime import datetime, timedelta, time
+    from sqlalchemy.dialects.mysql import insert as mysql_insert
+    import pandas as pd
 
-    for row in data:
-        ticker = row.get("Symbol")
-        posted_at = row.get("posted_at")
+    if isinstance(data, pd.DataFrame):
+        records = data.dropna(how="all").to_dict(orient="records")
+    else:
+        records = [row for row in (data or []) if row.get("posted_at")]
 
-        if not posted_at:
-            continue
+    if not records:
+        return
 
-        # 전날 장 마감 시간 (16:00)
-        previous_day_close_time = datetime.combine(
-            posted_at.date() - timedelta(days=1), time(hour=16, minute=0)
-        )
+    grouped = defaultdict(list)
+    for row in records:
+        grouped[row["Symbol"]].append(row)
 
-        # 전날 종가: 마감 시간 이전 중 가장 늦은 데이터
-        previous = (
-            db.query(Stock)
-            .filter(Stock.ticker == ticker, Stock.posted_at <= previous_day_close_time)
+    prev_close_map: dict[str, float | None] = {}
+
+    for ticker, rows in grouped.items():
+        # 이번 배치에서 가장 이른 시각
+        first_ts: datetime = min(r["posted_at"] for r in rows)
+        cutoff = datetime.combine(first_ts.date() - timedelta(days=1), time(16, 0))
+
+        prev = (
+            db.query(Stock.close)
+            .filter(Stock.ticker == ticker, Stock.posted_at <= cutoff)
             .order_by(Stock.posted_at.desc())
             .first()
         )
 
-        previous_close = previous.close if previous else None
-        current_close = row.get("Close")
-        change = 0
+        prev_close_map[ticker] = prev.close if prev else None
 
-        if previous_close and current_close:
-            try:
-                change = round(
-                    (float(current_close) / float(previous_close) - 1) * 100, 2
+    for ticker, rows in grouped.items():
+        rows.sort(key=lambda r: r["posted_at"])  # 시계열 순서
+        prev_close = prev_close_map[ticker]
+
+        for row in rows:
+            cur_close = row.get("Close")
+
+            # 전날 종가 대비 변동률(%) 계산
+            change = 0.0
+            if prev_close and cur_close:
+                try:
+                    change = round((float(cur_close) / float(prev_close) - 1) * 100, 2)
+                except ZeroDivisionError:
+                    change = 0.0
+            prev_close = cur_close or prev_close  # 다음 루프용 캐시
+
+            stmt = (
+                mysql_insert(Stock).values(
+                    crawling_id=crawling_id,
+                    ticker=ticker,
+                    posted_at=row["posted_at"],
+                    open=row.get("Open"),
+                    high=row.get("High"),
+                    low=row.get("Low"),
+                    close=cur_close,
+                    volume=row.get("Volume"),
+                    change=change,
                 )
-            except ZeroDivisionError:
-                change = 0
-
-        # 새 데이터 삽입
-        db.add(
-            Stock(
-                crawling_id=crawling_id,
-                ticker=ticker,
-                posted_at=posted_at,
-                open=row.get("Open"),
-                high=row.get("High"),
-                low=row.get("Low"),
-                close=current_close,
-                volume=row.get("Volume"),
-                change=change,
+                # UNIQUE(ticker, posted_at) 가 충돌하면 내용 갱신
+                .on_duplicate_key_update(
+                    crawling_id=crawling_id,
+                    open=row.get("Open"),
+                    high=row.get("High"),
+                    low=row.get("Low"),
+                    close=cur_close,
+                    volume=row.get("Volume"),
+                    change=change,
+                    posted_at=row["posted_at"],
+                )
             )
-        )
+            db.execute(stmt)
+
+    db.commit()
 
 
 def store_financials_common(db, crawling_id, row):
