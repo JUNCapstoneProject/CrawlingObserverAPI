@@ -3,13 +3,11 @@ from ..config.keys import API_KEYS
 from .Fred import FredCrawler
 from .YFinance import YFinanceCrawler
 
+
 def run():
 
     # 설정 정보를 매핑하여 관리
-    crawler_configs = {
-        "Fred": FredCrawler,
-        "YFinance": YFinanceCrawler
-    }
+    crawler_configs = {"Fred": FredCrawler, "YFinance": YFinanceCrawler}
 
     # 크롤러 인스턴스 생성 (API 키가 있는 경우에만 전달)
     crawlers = [

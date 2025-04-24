@@ -20,6 +20,7 @@ db_url = os.getenv("DB_URL", "sqlite:///:memory:")
 engine = create_engine(db_url, echo=False, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
+
 @contextmanager
 def get_session():
     session = SessionLocal()

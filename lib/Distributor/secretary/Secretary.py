@@ -6,8 +6,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from lib.Distributor.secretary.models.core import CrawlingLog, FailLog
 from lib.Distributor.secretary.handlers import (
-    store_news, store_macro, store_reports, store_stock,
-    store_income_statement, store_balance_sheet, store_cash_flow
+    store_news,
+    store_macro,
+    store_reports,
+    store_stock,
+    store_income_statement,
+    store_balance_sheet,
+    store_cash_flow,
 )
 
 
@@ -55,13 +60,11 @@ class Secretary:
 
         cleaned_df = convert(df)
 
-        raw_string = json.dumps({
-            "tag": tag,
-            "df": cleaned_df
-        }, sort_keys=True, ensure_ascii=False)
+        raw_string = json.dumps(
+            {"tag": tag, "df": cleaned_df}, sort_keys=True, ensure_ascii=False
+        )
 
         return hashlib.sha256(raw_string.encode("utf-8")).hexdigest()
-
 
     def _distribute_single(self, result: dict):
         # from lib.Distributor.secretary.models.core import CrawlingLog, FailLog
@@ -88,7 +91,9 @@ class Secretary:
                 crawling_id = self._generate_hash_id(tag, df)
 
             # 중복된 crawling_id 존재 여부 체크 (optional, 안전장치)
-            exists = self.db.query(CrawlingLog).filter_by(crawling_id=crawling_id).first()
+            exists = (
+                self.db.query(CrawlingLog).filter_by(crawling_id=crawling_id).first()
+            )
             if exists:
                 # print(f"[SKIP] 이미 처리된 데이터: crawling_id={crawling_id}")
                 return
@@ -97,17 +102,19 @@ class Secretary:
                 crawling_id=crawling_id,
                 crawling_type=log.get("crawling_type"),
                 status_code=log.get("status_code"),
-                target_url=log.get("target_url")
+                target_url=log.get("target_url"),
             )
             self.db.add(crawling_log)
             self.db.flush()
             self.db.refresh(crawling_log)
 
             if "fail_log" in result:
-                self.db.add(FailLog(
-                    crawling_id=crawling_id,
-                    err_message=result["fail_log"].get("err_message")
-                ))
+                self.db.add(
+                    FailLog(
+                        crawling_id=crawling_id,
+                        err_message=result["fail_log"].get("err_message"),
+                    )
+                )
                 self.db.commit()
                 return
 

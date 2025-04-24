@@ -2,6 +2,8 @@ from fredapi import Fred
 import pandas as pd
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
+from lib.Exceptions.exceptions import *
+
 
 class FredCrawler(CrawlerInterface):
     def __init__(self, name, api_key):
@@ -20,58 +22,86 @@ class FredCrawler(CrawlerInterface):
             "Producer Price Index (PPI)": "PPIACO",
             "PPI - Vehicle": "PCU336110336110",
             "PPI - Electric": "PCU335999335999",
-            # "Purchasing Managers' Index (PMI)": "PMI", 
+            # "Purchasing Managers' Index (PMI)": "PMI",
             "Personal Consumption Expenditures (PCE)": "PCE",
             "Consumer Confidence Index (CCI)": "UMCSENT",
         }
         self.tag = "macro"
 
     def crawl(self):
-        """FRED 데이터를 지표별로 분리하여 최신 값만 반환"""
+        """FRED 데이터를 지표별로 분리하여 최근과 그 전 데이터 각각 반환"""
         results = []
 
         for name, series_id in self.series_dict.items():
             try:
-                # 시계열 데이터 가져오기
                 data_series = self.fred.get_series(series_id)
                 data_series = data_series.dropna().ffill()
                 data_series.index = pd.to_datetime(data_series.index)
 
-                if data_series.empty:
-                    raise ValueError("해당 시리즈 데이터 없음")
+                if len(data_series) < 2:
+                    raise DataNotFoundException(
+                        "데이터가 2개 미만입니다.", source=series_id
+                    )
 
-                # 최신 데이터 1건만 추출
                 latest_date = data_series.index[-1]
+                previous_date = data_series.index[-2]
                 latest_value = data_series.iloc[-1]
+                previous_value = data_series.iloc[-2]
 
-                row = {
+                latest_row = {
                     "index_name": name,
                     "country": "US",
                     "index_value": str(latest_value),
-                    "posted_at": latest_date.to_pydatetime()
+                    "posted_at": latest_date.to_pydatetime(),
                 }
 
-                results.append({
-                    "tag": self.tag,
-                    "log": {
-                        "crawling_type": self.tag,
-                        "status_code": 200
-                    },
-                    "df": pd.DataFrame([row])
-                })
+                previous_row = {
+                    "index_name": name,
+                    "country": "US",
+                    "index_value": str(previous_value),
+                    "posted_at": previous_date.to_pydatetime(),
+                }
+
+                # 최신 데이터용 result
+                results.append(
+                    {
+                        "tag": self.tag,
+                        "log": {"crawling_type": self.tag, "status_code": 200},
+                        "df": pd.DataFrame([latest_row]),
+                    }
+                )
+
+                # 이전 데이터용 result
+                results.append(
+                    {
+                        "tag": self.tag,
+                        "log": {"crawling_type": self.tag, "status_code": 200},
+                        "df": pd.DataFrame([previous_row]),
+                    }
+                )
+
+            except CrawlerException as e:
+                results.append(
+                    {
+                        "tag": self.tag,
+                        "log": {
+                            "crawling_type": self.tag,
+                            "status_code": e.status_code,
+                        },
+                        "fail_log": {"index_name": name, "err_message": str(e)},
+                    }
+                )
 
             except Exception as e:
-                results.append({
-                    "tag": self.tag,
-                    "log": {
-                        "crawling_type": self.tag,
-                        "status_code": 500
-                    },
-                    "fail_log": {
-                        "index_name": name,
-                        "err_message": f"{series_id} - {str(e)}"
+                results.append(
+                    {
+                        "tag": self.tag,
+                        "log": {"crawling_type": self.tag, "status_code": 500},
+                        "fail_log": {
+                            "index_name": name,
+                            "err_message": f"{series_id} - 알 수 없는 오류: {str(e)}",
+                        },
                     }
-                })
+                )
 
         return results
-
