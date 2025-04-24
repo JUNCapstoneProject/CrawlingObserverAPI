@@ -3,15 +3,12 @@
     "base_url": "https://finance.yahoo.com",
     "url": "https://finance.yahoo.com/topic/stock-market-news/",
     "next_page": null,
-    "main_container_selectors": [
-      "div.container.yf-1jvnfga",
-      "section.container.sz-small.stream.vertical"
-    ],
+    "main_container_selectors": ["li.stream-item > section > div"],
     "content_container_selectors": ["div.article-wrap.no-bb"],
     "selectors": {
       "main": {
-        "href": ["a.titles-link", "a.subtle-link"],
-        "title": ["a.titles-link", "a.subtle-link"],
+        "href": ["a.subtle-link"],
+        "title": ["a.subtle-link"],
         "organization": ["div.publishing"]
       },
       "contents": {
