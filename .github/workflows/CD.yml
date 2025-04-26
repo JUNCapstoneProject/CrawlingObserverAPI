@@ -16,7 +16,17 @@ jobs:
       - name: 'Checkout Github Repository'
         uses: actions/checkout@v2
 
-      - name: 'Login and Deploy via SSH on Remote Server'
+      - name: 'Login and Copy project via SSH on Remote Server'
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "./*"
+          target: "/home/stockmarketanalysis/dockers/CrawlingObserverAPI/service"
+
+      - name: 'Deploy docker via SSH on Remote Server'
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_ADDR }}
@@ -24,10 +34,6 @@ jobs:
           password: ${{ secrets.SERVER_PWD }}  # 비밀번호로 로그인하도록 수정
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            # 원격 서버에 배포 폴더가 없으면 생성
-            mkdir -p ~/dockers/CrawlingObserverAPI/service
-            # rsync로 프로젝트 파일 복사
-            rsync -avz ./ ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_ADDR }}:~/dockers/CrawlingObserverAPI/service
             # Docker로 서비스 빌드 및 실행
             cd ~/dockers/CrawlingObserverAPI/service
             docker build -t docker:CrawlingObserverAPI_service .
