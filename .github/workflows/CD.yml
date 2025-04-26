@@ -1,6 +1,10 @@
 name: CrawlingObserverAPI_CD
 
 on:
+  # workflow_run:
+  #   workflows: ["StockAnalysisAPI_CI"]
+  #   types:
+  #     - completed
   push:
     branches:
       - main
@@ -15,15 +19,15 @@ jobs:
       - name: 'Login and Deploy via SSH on Remote Server'
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}  # 비밀번호 대신 개인 키 사용
+          host: ${{ secrets.SERVER_ADDR }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PWD }}  # 비밀번호로 로그인하도록 수정
           port: ${{ secrets.SERVER_PORT }}
           script: |
             # 원격 서버에 배포 폴더가 없으면 생성
             mkdir -p ~/dockers/CrawlingObserverAPI/service
             # rsync로 프로젝트 파일 복사
-            rsync -avz ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/dockers/CrawlingObserverAPI/service
+            rsync -avz ./ ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_ADDR }}:~/dockers/CrawlingObserverAPI/service
             # Docker로 서비스 빌드 및 실행
             cd ~/dockers/CrawlingObserverAPI/service
             docker build -t docker:CrawlingObserverAPI_service .
