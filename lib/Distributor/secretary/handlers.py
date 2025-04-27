@@ -131,6 +131,8 @@ def store_stock(db, crawling_id, data):
                     close=cur_close,
                     volume=row.get("Volume"),
                     change=change,
+                    adj_close=row.get("Adj Close"),
+                    market_cap=row.get("MarketCap"),
                 )
                 # UNIQUE(ticker, posted_at) 가 충돌하면 내용 갱신
                 .on_duplicate_key_update(
@@ -141,6 +143,8 @@ def store_stock(db, crawling_id, data):
                     close=cur_close,
                     volume=row.get("Volume"),
                     change=change,
+                    adj_close=row.get("Adj Close"),
+                    market_cap=row.get("MarketCap"),
                     posted_at=row["posted_at"],
                 )
             )

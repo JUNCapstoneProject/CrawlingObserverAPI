@@ -60,6 +60,7 @@ class YFinanceStockCrawler(CrawlerInterface):
         self.tag = "stock"
         self.interval = interval
         self.verbose = verbose
+        self.adjustment_ratios = {}
 
     def crawl(self):
         results = []
@@ -122,6 +123,9 @@ class YFinanceStockCrawler(CrawlerInterface):
     def _crawl_batch(self, batch):
         batch_results = []
 
+        if not hasattr(self, "adjustment_ratios"):
+            self.adjustment_ratios = {}
+
         try:
             tickers = yf.Tickers(" ".join(batch))
         except Exception as e:
@@ -137,23 +141,18 @@ class YFinanceStockCrawler(CrawlerInterface):
                         "해당 종목을 찾을 수 없음", source=symbol
                     )
 
-                df = stock.history(period="1d", interval=self.interval, prepost=True)[
-                    ["Open", "High", "Low", "Close", "Volume"]
-                ]
-                if df.empty:
-                    raise DataNotFoundException(
-                        "Empty DataFrame (거래 데이터 없음)", source=symbol
-                    )
+                # ✅ 보정비율, MarketCap 각각 함수로 가져오기
+                ratio = self._get_adjustment_ratio(stock, symbol)
+                market_cap = self._get_market_cap(stock)
 
-                df = df.tail(1).reset_index()
-                df.rename(columns={"Datetime": "posted_at"}, inplace=True)
-                df["Symbol"] = symbol
+                # ✅ df 가공
+                df_min = self._process_minute_data(stock, symbol, ratio, market_cap)
 
                 batch_results.append(
                     {
                         "tag": self.tag,
                         "log": {"crawling_type": self.tag, "status_code": 200},
-                        "df": df,
+                        "df": df_min,
                     }
                 )
 
@@ -182,3 +181,63 @@ class YFinanceStockCrawler(CrawlerInterface):
             time.sleep(random.uniform(0.1, 0.4))
 
         return batch_results
+
+    def _get_adjustment_ratio(self, stock, symbol: str) -> float:
+        """
+        일봉 데이터에서 보정비율(Adj Close / Close) 계산
+        """
+        if symbol in self.adjustment_ratios:
+            return self.adjustment_ratios[symbol]
+
+        try:
+            df_day = stock.history(period="7d", interval="1d", prepost=True)
+            if not df_day.empty and "Adj Close" in df_day.columns:
+                latest = df_day.tail(1).iloc[0]
+                close = latest["Close"]
+                adj_close = latest["Adj Close"]
+                if close and adj_close:
+                    ratio = adj_close / close
+                else:
+                    ratio = 1
+            else:
+                ratio = 1
+        except Exception:
+            ratio = 1
+
+        self.adjustment_ratios[symbol] = ratio  # 캐싱
+        return ratio
+
+    def _get_market_cap(self, stock) -> Optional[float]:
+        """
+        fast_info → info 순으로 MarketCap 가져오기
+        """
+        try:
+            market_cap = stock.fast_info.get("market_cap")
+            if market_cap is None:
+                market_cap = stock.info.get("marketCap")
+            return market_cap
+        except Exception:
+            return None
+
+    def _process_minute_data(
+        self, stock, symbol: str, ratio: float, market_cap: Optional[float]
+    ):
+        """
+        분봉 데이터 정리 + Adj Close, MarketCap 추가하는 함수
+        """
+        df_min = stock.history(period="1d", interval=self.interval, prepost=True)[
+            ["Open", "High", "Low", "Close", "Volume"]
+        ]
+
+        if df_min.empty:
+            raise DataNotFoundException(
+                "Empty DataFrame (거래 데이터 없음)", source=symbol
+            )
+
+        df_min = df_min.tail(1).reset_index()
+        df_min.rename(columns={"Datetime": "posted_at"}, inplace=True)
+        df_min["Symbol"] = symbol
+        df_min["Adj Close"] = df_min["Close"].values[0] * ratio
+        df_min["MarketCap"] = market_cap
+
+        return df_min
