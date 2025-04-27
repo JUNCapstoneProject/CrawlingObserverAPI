@@ -20,6 +20,8 @@ class Stock(Base):
     high = Column(DECIMAL(18, 2), nullable=False)
     low = Column(DECIMAL(18, 2), nullable=False)
     close = Column(DECIMAL(18, 2), nullable=False)
+    adj_close = Column(DECIMAL(18, 2), nullable=False)
     change = Column(Float, nullable=True)
 
     volume = Column(BigInteger, nullable=False)
+    market_cap = Column(BigInteger, nullable=False)

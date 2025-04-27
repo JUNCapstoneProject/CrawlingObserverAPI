@@ -41,9 +41,16 @@ class Secretary:
     def distribute(self, result: dict | list[dict]):
         if isinstance(result, list):
             for r in result:
-                self._distribute_single(r)
+                try:
+                    self._distribute_single(r)
+                except Exception as e:
+                    print(f"[SKIP] 에러 발생, 다음 데이터로 넘어갑니다: {e}")
+                    continue
         else:
-            self._distribute_single(result)
+            try:
+                self._distribute_single(result)
+            except Exception as e:
+                print(f"[SKIP] 에러 발생, 단일 데이터 처리 실패: {e}")
 
     def _generate_hash_id(self, tag: str, df: list[dict]) -> str:
         # import hashlib, json
