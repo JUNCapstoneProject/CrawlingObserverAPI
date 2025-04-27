@@ -1,13 +1,10 @@
 name: CrawlingObserverAPI_CD
 
 on:
-  # workflow_run:
-  #   workflows: ["StockAnalysisAPI_CI"]
-  #   types:
-  #     - completed
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["StockAnalysisAPI_CI"]
+    types:
+      - completed
 
 jobs:
   deploy:
