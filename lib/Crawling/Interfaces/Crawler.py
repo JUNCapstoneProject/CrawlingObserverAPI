@@ -44,7 +44,9 @@ class CrawlerInterface(ABC):
         while True:
             is_crawling, interval = self.is_crawling_time()
             if is_crawling:
-                # print(f"{self.__class__.__name__}: 현재 크롤링 가능 시간입니다. 크롤링을 시작합니다.")
+                print(
+                    f"{self.__class__.__name__}: 현재 크롤링 가능 시간입니다. 크롤링을 시작합니다."
+                )
 
                 result = self.crawl()
 
@@ -69,20 +71,24 @@ class CrawlerInterface(ABC):
                                     row["posted_at"] = pd.to_datetime(row["posted_at"])
 
                     # 테스트는 파일, 배포는 DB(주석처리로 선택)
-                    # self.save_to_file(result)
+                    self.save_to_file(result)
                     self.save_to_db(result)
 
                 else:
-                    # print(f"[WARNING]{self.__class__.__name__}: 크롤링 결과 없음! `crawl()`에서 반환된 데이터가 없습니다.")
+                    print(
+                        f"[WARNING]{self.__class__.__name__}: 크롤링 결과 없음! `crawl()`에서 반환된 데이터가 없습니다."
+                    )
                     pass
 
             else:
                 now = datetime.datetime.now()
-                # print(f"[{now}] {self.__class__.__name__}: 현재 크롤링 시간이 아닙니다. 대기 중...")
+                print(
+                    f"[{now}] {self.__class__.__name__}: 현재 크롤링 시간이 아닙니다. 대기 중..."
+                )
 
             sleep_time = 60 * (interval if interval else 10)
             minutes, seconds = divmod(sleep_time, 60)
-            # print(f"{self.__class__.__name__}: {minutes}분 {seconds}초 동안 대기...")
+            print(f"{self.__class__.__name__}: {minutes}분 {seconds}초 동안 대기...")
             time.sleep(sleep_time)
 
     def save_to_file(self, result):
@@ -103,7 +109,7 @@ class CrawlerInterface(ABC):
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2, default=str)
 
-        # print(f"{self.__class__.__name__}: 크롤링 결과 파일 저장 완료: {filename}")
+        print(f"{self.__class__.__name__}: 크롤링 결과 파일 저장 완료: {filename}")
 
     def save_to_db(self, result):
         from ...Distributor.secretary.Secretary import Secretary
@@ -114,7 +120,7 @@ class CrawlerInterface(ABC):
 
         try:
             secretary.distribute(result)
-            # print(f"{self.__class__.__name__}: DB 저장 완료")
+            print(f"{self.__class__.__name__}: DB 저장 완료")
         finally:
             db.close()
 
