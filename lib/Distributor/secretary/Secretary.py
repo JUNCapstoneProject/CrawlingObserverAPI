@@ -2,7 +2,10 @@ import json
 import hashlib
 import pandas as pd
 from sqlalchemy.exc import SQLAlchemyError
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+KST = timezone(timedelta(hours=9))
+now_kst = datetime.now(KST)
 
 from lib.Distributor.secretary.models.core import CrawlingLog, FailLog
 from lib.Distributor.secretary.handlers import (
@@ -116,6 +119,7 @@ class Secretary:
                 crawling_type=log.get("crawling_type"),
                 status_code=log.get("status_code"),
                 target_url=log.get("target_url"),
+                try_time=now_kst,
             )
             self.db.add(crawling_log)
             self.db.flush()
