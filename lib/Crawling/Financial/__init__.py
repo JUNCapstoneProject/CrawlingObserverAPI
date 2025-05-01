@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
-from ..config.keys import API_KEYS
 from .Fred import FredCrawler
 from .Finance import FinancialCrawler
+from lib.Config.config import Config
 
 
 def run():
@@ -10,10 +10,10 @@ def run():
     crawler_configs = {"Fred": FredCrawler, "Finance": FinancialCrawler}
 
     # 크롤러 인스턴스 생성 (API 키가 있는 경우에만 전달)
-    crawlers = [
-        cls(name, API_KEYS.get(name)) if API_KEYS.get(name) else cls(name)
-        for name, cls in crawler_configs.items()
-    ]
+    crawlers = []
+    for name, cls in crawler_configs.items():
+        key = Config.get(f"API_KEYS.{name}")
+        crawlers.append(cls(name, key) if key else cls(name))
 
     # 병렬 실행
     with ThreadPoolExecutor(max_workers=len(crawlers)) as executor:

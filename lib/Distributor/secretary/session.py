@@ -1,22 +1,16 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-import os
 from contextlib import contextmanager
-from dotenv import load_dotenv
-from pathlib import Path
 
-# 📌 현재 session.py와 같은 폴더의 .env를 정확히 지정
-env_path = Path(__file__).resolve().parent / ".env"
-# print("🧭 Looking for .env at:", env_path)
+from lib.Config.config import Config  # YAML 기반 설정 클래스
 
-# ✅ 명시적으로 로딩
-loaded = load_dotenv(dotenv_path=env_path)
-# print("📦 dotenv loaded:", loaded)
+if not Config._config:
+    Config.init()
 
-# ✅ 환경변수 읽기
-db_url = os.getenv("DB_URL", "sqlite:///:memory:")
-# print("📌 Loaded DB_URL:", db_url)
+# ✅ 설정에서 DB URL 불러오기
+db_url = Config.get("database.url", default="sqlite:///:memory:")
 
+# ✅ SQLAlchemy 세션 설정
 engine = create_engine(db_url, echo=False, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 

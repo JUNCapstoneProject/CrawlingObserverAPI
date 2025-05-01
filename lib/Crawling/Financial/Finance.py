@@ -2,13 +2,14 @@ import yfinance as yf
 import pandas as pd
 import time
 import concurrent.futures
+from typing import List
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 from lib.Exceptions.exceptions import *
-
+from lib.Config.config import Config
 from lib.Distributor.secretary.models.company import Company
 from lib.Distributor.secretary.session import get_session
-from typing import List
+
 
 # ✅ 재무제표 종류별 필드 매핑
 SECTION_FIELDS = {
@@ -50,7 +51,7 @@ class FinancialCrawler(CrawlerInterface):
     def __init__(self, name):
         super().__init__(name)
         self.batch_size = 100
-        self.symbols = get_symbols_from_db(limit=100)
+        self.symbols = get_symbols_from_db(limit=Config.get("symbol_size", 5))
         self.tag = "financials"
 
     def crawl(self):
