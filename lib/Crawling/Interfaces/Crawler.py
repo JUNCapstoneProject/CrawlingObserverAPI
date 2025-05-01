@@ -8,6 +8,7 @@ import numpy as np
 from uuid import uuid4
 
 from lib.Crawling.config.LoadConfig import load_config
+from lib.Config.config import Config
 
 
 class CrawlerInterface(ABC):
@@ -19,6 +20,7 @@ class CrawlerInterface(ABC):
         """
         self.name = name  # 실행 코드에서 name을 직접 넘겨받음
         self.schedule = self.load_schedule(self.name)  # name을 이용해 스케줄 로드
+        self.save_method = Config.get("save_method", {})
 
     def load_schedule(self, name):
         """JSON에서 크롤링 스케줄 불러오기"""
@@ -70,9 +72,11 @@ class CrawlerInterface(ABC):
                                 if "posted_at" in row:
                                     row["posted_at"] = pd.to_datetime(row["posted_at"])
 
-                    # 테스트는 파일, 배포는 DB(주석처리로 선택)
-                    self.save_to_file(result)
-                    self.save_to_db(result)
+                    if self.save_method.get("save_to_file", False):
+                        self.save_to_file(result)
+
+                    if self.save_method.get("save_to_DB", True):
+                        self.save_to_db(result)
 
                 else:
                     print(

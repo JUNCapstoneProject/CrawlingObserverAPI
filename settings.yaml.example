@@ -1,0 +1,15 @@
+API_KEYS:
+  Fred: "your_api_key"
+
+symbol_size: 100
+
+articles:
+  size: 10
+  retry: 50
+
+save_method:
+  save_to_file: true
+  save_to_DB: true
+
+database:
+  url: mysql+pymysql://username:password@url:port/db_name

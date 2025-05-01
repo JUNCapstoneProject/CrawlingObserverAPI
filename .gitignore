@@ -18,7 +18,7 @@ pyproject.toml
 **/Logs/
 **/Datas/
 
-**/.env
+**/.yaml
 
 lib/Distributor/secretary/utils/create_tables.py
 lib/Distributor/secretary/utils/store_company_table.py
