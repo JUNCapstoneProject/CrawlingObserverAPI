@@ -7,6 +7,7 @@ from lib.Crawling.config.headers import HEADERS
 from lib.Crawling.utils.random_delay import random_delay
 from lib.Crawling.Interfaces.Crawler_handlers import EXTRACT_HANDLERS
 from lib.Exceptions.exceptions import *
+from lib.Config.config import Config
 
 
 class CrawlerUsingRequest(CrawlerInterface):
@@ -14,8 +15,8 @@ class CrawlerUsingRequest(CrawlerInterface):
         super().__init__(name)
         self.tag = None
         self.config = selector_config
-        self.max_articles = 10  # 크롤링할 뉴스 수
-        self.max_retries = 50  # 요청 재시도 횟수
+        self.max_articles = Config.get("articles.size", 6)  # 크롤링할 뉴스 수
+        self.max_retries = Config.get("articles.retry", 50)  # 요청 재시도 횟수
         self.custom_handlers = {}
         self.use_pagination = bool(selector_config.get("next_page", False))
 

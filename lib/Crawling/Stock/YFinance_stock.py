@@ -8,7 +8,7 @@ from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 from lib.Distributor.secretary.models.company import Company
 from lib.Distributor.secretary.session import get_session
 from lib.Exceptions.exceptions import *
-
+from lib.Config.config import Config
 
 from typing import List, Optional
 
@@ -56,7 +56,7 @@ class YFinanceStockCrawler(CrawlerInterface):
         super().__init__(name)
         self.batch_size = 20  # 한 스레드에 넘길 배치 크기
         self.max_workers = 5  # 동시 실행 스레드 수
-        self.symbols = get_symbols_from_db(interval, limit=5)
+        self.symbols = get_symbols_from_db(interval, limit=Config.get("symbol_size", 5))
         self.tag = "stock"
         self.interval = interval
         self.verbose = verbose
