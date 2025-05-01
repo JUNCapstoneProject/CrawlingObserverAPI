@@ -1,8 +1,8 @@
 import json
-import uuid
 import hashlib
 import pandas as pd
 from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime
 
 from lib.Distributor.secretary.models.core import CrawlingLog, FailLog
 from lib.Distributor.secretary.handlers import (
@@ -93,7 +93,13 @@ class Secretary:
 
             # ✅ 실패 로그인 경우 uuid 사용
             if "fail_log" in result:
-                crawling_id = str(uuid.uuid4())
+                fail_df = [
+                    {
+                        "err_message": result["fail_log"].get("err_message"),
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                ]
+                crawling_id = self._generate_hash_id(tag="fail_log", df=fail_df)
             else:
                 crawling_id = self._generate_hash_id(tag, df)
 
