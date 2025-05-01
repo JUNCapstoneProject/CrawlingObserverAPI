@@ -14,3 +14,5 @@ save_method:
 database:
   url: mysql+pymysql://root:363636@localhost:3306/crawling_db
   # url: mysql+pymysql://crawlingadmin:crawling05@msiwol.iptime.org:44005/crawling_db
+
+color_log: true

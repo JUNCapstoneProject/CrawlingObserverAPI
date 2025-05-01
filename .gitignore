@@ -16,6 +16,7 @@ poetry.lock
 pyproject.toml
 
 **/Logs/
+**/logs/
 **/Datas/
 
 **/.yaml
