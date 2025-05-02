@@ -1,0 +1,17 @@
+API_KEYS:
+  Fred: "test-api-key"
+
+symbol_size: 10
+
+articles:
+  size: 1
+  retry: 1
+
+save_method:
+  save_to_file: true
+  save_to_DB: false # DB 저장 비활성화
+
+database:
+  url: "sqlite:///:memory:" # 메모리 DB 사용
+
+color_log: false # 로그 출력 최소화
