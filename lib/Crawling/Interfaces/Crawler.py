@@ -69,7 +69,7 @@ class CrawlerInterface(ABC):
             tag = "financials"
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{temp_dir}/crawled_result_{timestamp}_{tag}_{uuid4().hex[:8]}.json"
+        filename = f"{temp_dir}/{tag}_{timestamp}__{uuid4().hex[:8]}.json"
 
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2, default=str)
