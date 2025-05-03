@@ -9,9 +9,10 @@ articles:
 
 save_method:
   save_to_file: true
-  save_to_DB: false # DB 저장 비활성화
+  save_to_DB: true
 
 database:
-  url: "sqlite:///:memory:" # 메모리 DB 사용
+  url: "sqlite:///:memory:"
 
-color_log: false # 로그 출력 최소화
+color_log: false
+is_test: true

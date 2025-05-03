@@ -15,3 +15,5 @@ database:
   url: mysql+pymysql://username:password@url:port/db_name
 
 color_log: true
+
+is_test: true
