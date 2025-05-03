@@ -39,8 +39,8 @@ class InvestingReportCrawler(CrawlerUsingRequest):
         return retry_with_exponential_backoff(
             _fetch,
             max_retries=max_retries,
-            base_delay=1.0,
-            max_delay=5,
+            base_delay=0.1,
+            max_delay=1.5,
             class_name=self.__class__.__name__,
         )
 
