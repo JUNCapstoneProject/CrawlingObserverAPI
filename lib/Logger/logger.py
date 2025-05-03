@@ -29,7 +29,8 @@ class Logger:
     def log(self, level: str, message: str):
         color = COLOR_MAP.get(level.upper(), "") if Logger.use_color else ""
         reset = COLOR_MAP["RESET"] if Logger.use_color else ""
-        formatted = f"[{level:<6}] {self.name:<24} - {message}"
+        timestamp = datetime.now().strftime("%m-%d %H:%M:%S")  # 간결한 형식
+        formatted = f"[{timestamp}] [{level:<6}] {self.name:<24} - {message}"
         print(f"{color}{formatted}{reset}")
 
         with open(Logger.log_file, "a", encoding="utf-8") as f:
