@@ -5,13 +5,15 @@ from datetime import datetime
 from lib.Config.config import Config
 
 COLOR_MAP = {
-    "START": "\033[92m",
-    "FILE": "\033[96m",
-    "DB": "\033[94m",
-    "WAIT": "\033[90m",
-    "WARN": "\033[93m",
-    "ERROR": "\033[91m",
-    "RESET": "\033[0m",
+    "START": "\033[92m",  # 초록
+    "FILE": "\033[96m",  # 밝은 청록
+    "DB": "\033[94m",  # 파랑
+    "WAIT": "\033[90m",  # 회색
+    "WARN": "\033[93m",  # 노랑
+    "ERROR": "\033[91m",  # 빨강
+    "INFO": "\033[97m",  # 흰색
+    "DEBUG": "\033[95m",  # 보라
+    "RESET": "\033[0m",  # 색상 초기화
 }
 
 
@@ -29,9 +31,12 @@ class Logger:
     def log(self, level: str, message: str):
         color = COLOR_MAP.get(level.upper(), "") if Logger.use_color else ""
         reset = COLOR_MAP["RESET"] if Logger.use_color else ""
-        timestamp = datetime.now().strftime("%m-%d %H:%M:%S")  # 간결한 형식
+        timestamp = datetime.now().strftime("%m-%d %H:%M:%S")
         formatted = f"[{timestamp}] [{level:<6}] {self.name:<24} - {message}"
-        print(f"{color}{formatted}{reset}")
+
+        # DEBUG 로그는 테스트 모드일 때만 출력
+        if level.upper() != "DEBUG" or Config.get("is_test", False):
+            print(f"{color}{formatted}{reset}")
 
         with open(Logger.log_file, "a", encoding="utf-8") as f:
             f.write(f"{formatted}\n")
