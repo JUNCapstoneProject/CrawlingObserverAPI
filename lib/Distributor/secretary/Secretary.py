@@ -1,4 +1,4 @@
-import json
+import json, orjson
 import hashlib
 import pandas as pd
 from sqlalchemy.exc import SQLAlchemyError
@@ -70,11 +70,11 @@ class Secretary:
 
         cleaned_df = convert(df)
 
-        raw_string = json.dumps(
-            {"tag": tag, "df": cleaned_df}, sort_keys=True, ensure_ascii=False
+        raw_bytes = orjson.dumps(
+            {"tag": tag, "df": cleaned_df},
+            option=orjson.OPT_SORT_KEYS | orjson.OPT_NON_STR_KEYS,
         )
-
-        return hashlib.sha256(raw_string.encode("utf-8")).hexdigest()
+        return hashlib.sha256(raw_bytes).hexdigest()
 
     def _distribute_single(self, result: dict):
         try:
@@ -92,7 +92,7 @@ class Secretary:
                 fail_df = [
                     {
                         "err_message": result["fail_log"].get("err_message"),
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now().isoformat(),
                     }
                 ]
                 crawling_id = self._generate_hash_id(tag="fail_log", df=fail_df)
@@ -131,7 +131,15 @@ class Secretary:
 
         except SQLAlchemyError as e:
             self.db.rollback()
-            self.logger.log_sqlalchemy_error(e)
+            symbol = None
+            if (
+                log.get("crawling_type") == "financials"
+                and isinstance(df, list)
+                and len(df) > 0
+                and "Symbol" in df[0]
+            ):
+                symbol = df[0]["Symbol"]  # 첫 번째 Symbol 사용
+            self.logger.log_sqlalchemy_error(e, symbol)
             raise
 
         except Exception as e:
