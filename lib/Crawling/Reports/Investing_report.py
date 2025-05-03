@@ -5,8 +5,8 @@ import re
 
 from lib.Crawling.Interfaces.CrawlerUsingRequest import CrawlerUsingRequest
 from lib.Crawling.config.headers import HEADERS
-from lib.Crawling.utils.random_delay import random_delay
 from lib.Exceptions.exceptions import *
+from lib.Crawling.utils.retry import retry_with_exponential_backoff
 
 
 class InvestingReportCrawler(CrawlerUsingRequest):
@@ -20,27 +20,28 @@ class InvestingReportCrawler(CrawlerUsingRequest):
     """ 오버라이딩 코드들 """
 
     def fetch_page(self, url=None, max_retries=None):
-        """Cloudflare 우회를 포함한 요청 함수. 요청 성공 시 soup+url 반환, 실패 시 ExternalAPIException 발생."""
+        """Cloudflare 우회를 포함한 요청 함수. 요청 성공 시 soup+url 반환, 실패 시 재시도"""
         url = url or self.config["url"]
         max_retries = max_retries or self.max_retries
 
-        for attempt in range(1, max_retries + 1):
-            try:
-                response = self.scraper.get(url, headers=HEADERS, timeout=20)
-                if response.status_code == 200:
-                    return {
-                        "soup": BeautifulSoup(response.text, "html.parser"),
-                        "status_code": 200,
-                        "url": url,
-                    }
-            except Exception:
-                pass  # 로그 시스템을 쓰는 경우 여기서 logging.warning(e) 가능
+        def _fetch():
+            response = self.scraper.get(url, headers=HEADERS, timeout=20)
 
-            if attempt < max_retries:
-                random_delay()
+            if response.status_code != 200:
+                response.raise_for_status()
 
-        raise ExternalAPIException(
-            "Cloudflare 우회 요청 실패 - 최대 재시도 초과", source=url
+            return {
+                "soup": BeautifulSoup(response.text, "html.parser"),
+                "status_code": response.status_code,
+                "url": url,
+            }
+
+        return retry_with_exponential_backoff(
+            _fetch,
+            max_retries=max_retries,
+            base_delay=1.0,
+            max_delay=5,
+            class_name=self.__class__.__name__,
         )
 
     def custom_extract_posted_at(self, soup, selectors):

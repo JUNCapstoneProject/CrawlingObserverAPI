@@ -4,10 +4,10 @@ import pandas as pd
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 from lib.Crawling.config.headers import HEADERS
-from lib.Crawling.utils.random_delay import random_delay
 from lib.Crawling.Interfaces.Crawler_handlers import EXTRACT_HANDLERS
 from lib.Exceptions.exceptions import *
 from lib.Config.config import Config
+from lib.Crawling.utils.retry import retry_with_exponential_backoff
 
 
 class CrawlerUsingRequest(CrawlerInterface):
@@ -20,29 +20,27 @@ class CrawlerUsingRequest(CrawlerInterface):
         self.custom_handlers = {}
         self.use_pagination = bool(selector_config.get("next_page", False))
 
-    # 사이트 보안 방식에 따라 자식 클래스에서 오버라이드
     def fetch_page(self, url=None):
         if url is None:
             url = self.config["url"]
 
-        retries = 0
-        while retries < self.max_retries:
-            try:
-                response = requests.get(url, headers=HEADERS, timeout=20)
-                response.raise_for_status()
-                return {
-                    "soup": BeautifulSoup(response.text, "html.parser"),
-                    "status_code": response.status_code,
-                    "url": url,
-                }
+        def _fetch():
+            response = requests.get(url, headers=HEADERS, timeout=20)
+            response.raise_for_status()
+            return {
+                "soup": BeautifulSoup(response.text, "html.parser"),
+                "status_code": response.status_code,
+                "url": url,
+            }
 
-            except requests.exceptions.RequestException as e:
-                retries += 1
-                if retries >= self.max_retries:
-                    raise ExternalAPIException(
-                        "최대 재시도 초과 - 요청 실패", source=url
-                    ) from e
-                random_delay()
+        # ✅ retry를 함수 호출 형태로 적용
+        return retry_with_exponential_backoff(
+            _fetch,
+            max_retries=self.max_retries,
+            base_delay=1.0,
+            max_delay=30,
+            class_name=self.__class__.__name__,
+        )
 
     def crawl(self):
         results = []
