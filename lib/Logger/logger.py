@@ -41,12 +41,19 @@ class Logger:
         with open(Logger.log_file, "a", encoding="utf-8") as f:
             f.write(f"{formatted}\n")
 
-    def log_sqlalchemy_error(self, error: Exception):
+    def log_sqlalchemy_error(self, error: Exception, symbol: str = None):
         from sqlalchemy.exc import IntegrityError
+        import re
+
+        symbol_info = f"(Symbol: {symbol}) " if symbol else ""
 
         if isinstance(error, IntegrityError):
-            match = re.search(r"Column '(\w+)' cannot be null", str(error))
+            # 핵심 메시지만 추출
+            message = str(error.orig) if hasattr(error, "orig") else str(error)
+            match = re.search(r"Column '(\w+)' cannot be null", message)
             null_col = match.group(1) if match else "unknown"
-            self.log("ERROR", f"삽입 실패 (필드: {null_col}=NULL) → SKIP")
+            self.log("ERROR", f"{symbol_info}삽입 실패 → {null_col}=NULL")
         else:
-            self.log("ERROR", f"DB 오류 발생 → {type(error).__name__}: {str(error)}")
+            # 일반 예외도 한 줄로 요약
+            summary = str(error).split("\n")[0].strip()[:200]
+            self.log("ERROR", f"{symbol_info}DB 오류 발생 → {summary}")

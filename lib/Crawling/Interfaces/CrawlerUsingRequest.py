@@ -94,11 +94,26 @@ class CrawlerUsingRequest(CrawlerInterface):
                 }
             ]
         except Exception as e:
+            status_code = (
+                getattr(e.response, "status_code", 500)
+                if isinstance(e, requests.HTTPError)
+                else 500
+            )
+            target_url = (
+                getattr(e.response, "url", None)
+                if isinstance(e, requests.HTTPError)
+                else getattr(e, "source", None)
+            )
+
             return [
                 {
                     "tag": self.tag,
-                    "log": {"crawling_type": self.tag, "status_code": 500},
-                    "fail_log": {"err_message": f"알 수 없는 예외 발생: {str(e)}"},
+                    "log": {
+                        "crawling_type": self.tag,
+                        "status_code": status_code,
+                        "target_url": target_url,
+                    },
+                    "fail_log": {"err_message": f"{type(e).__name__}: {str(e)}"},
                 }
             ]
 

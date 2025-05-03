@@ -40,7 +40,7 @@ class InvestingReportCrawler(CrawlerUsingRequest):
             _fetch,
             max_retries=max_retries,
             base_delay=0.1,
-            max_delay=1.5,
+            max_delay=5.0,
             class_name=self.__class__.__name__,
         )
 
