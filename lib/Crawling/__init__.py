@@ -3,24 +3,31 @@ from lib.Crawling.News import run as run_news
 from lib.Crawling.Reports import run as run_reports
 from lib.Crawling.Financial import run as run_financial
 from lib.Crawling.Stock import run as run_stock
+from lib.Config.config import Config
 
 
 def run():
+    crawler_switch = Config.get("crawler_switch", {})
+
     """크롤링 실행 (스레드 풀)"""
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = []
 
         # 뉴스 크롤링 실행
-        futures.append(executor.submit(run_news))
+        if crawler_switch.get("news", True):
+            futures.append(executor.submit(run_news))
 
         # 리포트 크롤링 실행
-        futures.append(executor.submit(run_reports))
+        if crawler_switch.get("reports", True):
+            futures.append(executor.submit(run_reports))
 
         # 금융 데이터 크롤링 실행
-        futures.append(executor.submit(run_financial))
+        if crawler_switch.get("financial", True):
+            futures.append(executor.submit(run_financial))
 
         # 주식 데이터 크롤링 실행
-        futures.append(executor.submit(run_stock))
+        if crawler_switch.get("stock", True):
+            futures.append(executor.submit(run_stock))
 
         # 모든 크롤링 작업 완료 대기
         for future in futures:
