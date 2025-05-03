@@ -31,7 +31,7 @@ def retry_with_exponential_backoff(
             delay = min(base_delay * (2**attempt), max_delay)
             delay += random.uniform(0, 0.5)  # 작은 지터로 충돌 완화
             logger.log(
-                "WARN",
+                "DEBUG",
                 f"{class_name} 오류 감지 → {delay:.1f}s 대기 후 재시도 "
                 f"({attempt + 1}/{max_retries})",
             )
