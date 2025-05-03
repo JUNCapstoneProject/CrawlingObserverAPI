@@ -22,7 +22,8 @@ class CrawlerInterface(ABC):
         self.logger = Logger(self.__class__.__name__)
 
     def run(self):
-        self._execute_crawl()  # 반드시 1회 실행
+        if not self.scheduler.is_test:
+            self._execute_crawl()  # 반드시 1회 실행
 
         while True:
             time.sleep(self.CHECK_INTERVAL_SEC)
@@ -69,7 +70,7 @@ class CrawlerInterface(ABC):
             tag = "financials"
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{temp_dir}/{tag}_{timestamp}__{uuid4().hex[:8]}.json"
+        filename = f"{temp_dir}/{timestamp}_{tag}__{uuid4().hex[:8]}.json"
 
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2, default=str)

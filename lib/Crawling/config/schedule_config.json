@@ -27,26 +27,12 @@
       "Thursday": [6, 22, 30],
       "Friday": [6, 22, 30]
     },
-    "YFinanceStock_1m": {
-      "Monday": [4, 20, 1],
-      "Tuesday": [4, 20, 1],
-      "Wednesday": [4, 20, 1],
-      "Thursday": [4, 20, 1],
-      "Friday": [4, 20, 1]
-    },
-    "YFinanceStock_5m": {
-      "Monday": [4, 20, 5],
-      "Tuesday": [4, 20, 5],
-      "Wednesday": [4, 20, 5],
-      "Thursday": [4, 20, 5],
-      "Friday": [4, 20, 5]
-    },
-    "YFinanceStock_15m": {
-      "Monday": [4, 20, 15],
-      "Tuesday": [4, 20, 15],
-      "Wednesday": [4, 20, 15],
-      "Thursday": [4, 20, 15],
-      "Friday": [4, 20, 15]
+    "YFinanceStock": {
+      "Monday": [4, 20, 10],
+      "Tuesday": [4, 20, 10],
+      "Wednesday": [4, 20, 10],
+      "Thursday": [4, 20, 10],
+      "Friday": [4, 20, 10]
     }
   },
 

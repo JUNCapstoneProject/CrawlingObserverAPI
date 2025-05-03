@@ -13,7 +13,8 @@ class Scheduler:
         self.schedule_config = load_config("schedule_config.json")
         self.schedule_type, self.schedule = self._load_schedule()
         self.eastern = ZoneInfo("America/New_York")
-        self.is_test = Config.get("is_test", False)
+        self.is_test = Config.get("is_test.toggle", False)
+        self.test_interval = Config.get("is_test.interval", 10)
 
     def _now_et(self) -> datetime.datetime:
         return datetime.datetime.now(tz=self.eastern)
@@ -34,7 +35,7 @@ class Scheduler:
     def is_crawling_time(self):
         if self.is_test:
             if not self._is_ttl_valid():
-                self._set_ttl(5)  # 테스트 모드: 5분 간격 TTL
+                self._set_ttl(self.test_interval)  # 테스트 모드
                 return True
             return False
 
