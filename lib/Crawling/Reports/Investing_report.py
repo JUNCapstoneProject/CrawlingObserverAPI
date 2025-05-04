@@ -42,6 +42,7 @@ class InvestingReportCrawler(CrawlerUsingRequest):
             base_delay=0.1,
             max_delay=5.0,
             class_name=self.__class__.__name__,
+            logger=self.logger,
         )
 
     def custom_extract_posted_at(self, soup, selectors):

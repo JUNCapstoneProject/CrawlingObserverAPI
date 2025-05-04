@@ -1,9 +1,6 @@
-# lib/Crawling/utils/retry_simple.py
 import time, random
-from typing import Callable
+from typing import Callable, Optional
 from lib.Logger.logger import Logger
-
-logger = Logger("RetrySimple")
 
 
 def retry_with_exponential_backoff(
@@ -12,6 +9,7 @@ def retry_with_exponential_backoff(
     base_delay: float = 1.0,  # 1번째 재시도 대기시간
     max_delay: float = 60.0,  # 대기 상한선
     class_name=None,
+    logger: Optional[Logger] = None,
     *args,
     **kwargs,
 ):
@@ -30,9 +28,12 @@ def retry_with_exponential_backoff(
 
             delay = min(base_delay * (2**attempt), max_delay)
             delay += random.uniform(0, 0.5)  # 작은 지터로 충돌 완화
-            logger.log(
-                "DEBUG",
-                f"{class_name} 오류 감지 → {delay:.1f}s 대기 후 재시도 "
-                f"({attempt + 1}/{max_retries})",
-            )
+
+            if logger:
+                logger.log(
+                    "DEBUG",
+                    f"{class_name} 오류 감지 → {delay:.1f}s 대기 후 재시도 "
+                    f"({attempt + 1}/{max_retries})",
+                )
+
             time.sleep(delay)

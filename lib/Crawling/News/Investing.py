@@ -43,6 +43,7 @@ class InvestingNewsCrawler(CrawlerUsingRequest):
             base_delay=0.1,
             max_delay=5.0,
             class_name=self.__class__.__name__,
+            logger=self.logger,
         )
 
     def extract_mainContainer(self, soup):

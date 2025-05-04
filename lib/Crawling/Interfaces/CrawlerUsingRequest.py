@@ -40,6 +40,7 @@ class CrawlerUsingRequest(CrawlerInterface):
             base_delay=1.0,
             max_delay=30,
             class_name=self.__class__.__name__,
+            logger=self.logger,
         )
 
     def crawl(self):
