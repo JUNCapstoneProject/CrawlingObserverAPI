@@ -1,7 +1,8 @@
 API_KEYS:
   Fred: "your_api_key"
 
-symbol_size: 100
+symbol_size:
+  total: 6000
 
 articles:
   size: 10
@@ -15,3 +16,13 @@ database:
   url: mysql+pymysql://username:password@url:port/db_name
 
 color_log: true
+
+is_test:
+  toggle: true
+  interval: 10
+
+crawler_switch:
+  news: true
+  reports: true
+  financial: true
+  stock: true
