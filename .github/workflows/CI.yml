@@ -39,3 +39,6 @@ jobs:
         run: |
           # tests 디렉토리 안의 test_*.py 또는 *_test.py를 실행시킴
           PYTHONPATH=. python -m pytest
+
+      - name: Print Python sys.path
+        run: python -c "import sys; print('sys.path:', sys.path)"
