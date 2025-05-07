@@ -2,7 +2,7 @@ name: CrawlingObserverAPI_CD
 
 on:
   workflow_run:
-    workflows: ["CrawlingObserverAPI_CD"]
+    workflows: ["CrawlingObserverAPI_CI"]
     types:
       - completed
 
