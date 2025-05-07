@@ -2,9 +2,9 @@ name: CrawlingObserverAPI_CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
@@ -16,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v3
         with:
-          python-version: '3.11.9'
+          python-version: "3.11.9"
 
       - name: Install Dependencies
         run: |
@@ -35,7 +35,7 @@ jobs:
           # 'exit-zero'는 모든 에러를 경고로 처리
           # Github 에디터는 한 줄에 127자까지만 보임
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-      - name : Test with pytest
+      - name: Test with pytest
         run: |
           # tests 디렉토리 안의 test_*.py 또는 *_test.py를 실행시킴
-          python -m pytest tests
+          python -m pytest

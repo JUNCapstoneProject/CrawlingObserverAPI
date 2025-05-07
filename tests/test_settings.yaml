@@ -2,7 +2,7 @@ API_KEYS:
   Fred: "test-api-key"
 
 symbol_size:
-  total: 6000
+  total: 100
 
 articles:
   size: 1
@@ -16,6 +16,7 @@ database:
   url: "sqlite:///:memory:"
 
 color_log: false
+print_error_log: false
 
 is_test:
   toggle: true

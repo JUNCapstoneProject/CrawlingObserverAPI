@@ -11,8 +11,11 @@ import datetime
 import json
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Tuple
 import threading, random
+from curl_cffi import requests as curl_requests
+
+session = curl_requests.Session(impersonate="chrome")
 
 import logging
 import pandas as pd
@@ -95,7 +98,7 @@ class YFinanceStockCrawler(CrawlerInterface):
     def __init__(self, name: str):
         super().__init__(name)
         self.batch_size = 30
-        self.max_workers = 5
+        self.max_workers = 10
         self.symbols = get_symbols_from_db(Config.get("symbol_size.total", 6000))
         self.tag = "stock"
         self.logger = Logger(self.__class__.__name__)
@@ -324,12 +327,11 @@ class YFinanceStockCrawler(CrawlerInterface):
         return shares_map
 
     def _ensure_price_cap_cache(self):
-        """Adj Close & MarketCap 캐시 갱신"""
+        """Adj Close & MarketCap 캐시 갱신 (curl + chart API)"""
 
         today = datetime.date.today()
         this_month = today.strftime("%Y-%m")
 
-        # 매월 2일에, 이전에 리셋하지 않았다면 캐시 초기화
         if today.day == 2 and self._shares_meta.get("last_reset") != this_month:
             self.logger.log("INFO", "[Shares] 월간 리셋 실행")
             self._cached_shares.clear()
@@ -338,16 +340,14 @@ class YFinanceStockCrawler(CrawlerInterface):
         if not self.symbols:
             return
 
-        # 1) sentinel 티커 1개로 최신 일자 파악
-        sentinel = self.symbols[0]  # 필요하면 'SPY' 등으로 고정
+        # 1) sentinel 심볼로 adj 날짜 파악
+        sentinel = self.symbols[0]
         try:
-            df_s = yf.download(
-                sentinel, period="7d", interval="1d", progress=False, auto_adjust=False
-            )
-            if df_s.empty:
+            sentinel_data = self._download_adjclose_chart([sentinel])
+            if sentinel not in sentinel_data:
                 self.logger.log("WARN", f"sentinel {sentinel} 데이터 없음")
                 return
-            adj_date = str(df_s.index[-1].date())
+            _, adj_date = sentinel_data[sentinel]
         except Exception as e:
             self.logger.log("ERROR", f"sentinel 다운로드 실패: {e}")
             return
@@ -363,41 +363,24 @@ class YFinanceStockCrawler(CrawlerInterface):
             self.logger.log("INFO", f"[MarketCap] 캐시 최신 (adj_date={adj_date})")
             return
 
-        # 3) 전일 Adj Close 한 번에 다운로드 (stale 전부)
+        # 3) adj close 다운로드 (chart API)
         self.logger.log("DEBUG", "Adj Close 다운로드 시작")
-        df = yf.download(
-            tickers=stale,
-            period="7d",
-            interval="1d",
-            group_by="ticker",
-            threads=True,
-            progress=False,
-            auto_adjust=False,
-        )
-        if df.empty:
+        adjclose_map = self._download_adjclose_chart(stale)
+        if not adjclose_map:
             self.logger.log("ERROR", "Adj Close 다운로드 실패")
             return
         self.logger.log("DEBUG", "Adj Close 다운로드 완료")
 
-        # 4) SEC 병렬 호출 → 발행주식수 맵
+        # 4) SEC 병렬 호출 → 발행주식수
         shares_map = self._bulk_fetch_shares(stale)
 
         # 5) 병합·캐싱
         updated = 0
         for sym in stale:
             try:
-                series = (
-                    df["Adj Close"]
-                    if len(stale) == 1
-                    else (
-                        df[sym]["Adj Close"]
-                        if sym in df.columns.get_level_values(0)
-                        else None
-                    )
-                )
-                if series is None or series.empty or pd.isna(series.iloc[-1]):
+                if sym not in adjclose_map:
                     continue
-                adj_close = float(series.iloc[-1])
+                adj_close, adj_date = adjclose_map[sym]
 
                 shares = shares_map.get(sym) or self._get_shares_outstanding(sym)
                 if not shares:
@@ -410,12 +393,62 @@ class YFinanceStockCrawler(CrawlerInterface):
                 self.logger.log("DEBUG", f"{sym} 캐싱 실패: {e}")
 
         _dump_shares_file(self._shares_meta, self._cached_shares)
-
         self.logger.log(
             "DEBUG",
-            f"[MarketCap] 캐시 갱신 완료 {updated:,}/{len(stale):,}"
-            f" (adj_date={adj_date})",
+            f"[MarketCap] 캐시 갱신 완료 {updated:,}/{len(stale):,} (adj_date={adj_date})",
         )
+
+    def _download_adjclose_chart(
+        self,
+        symbols: List[str],
+        days: int = 7,
+        max_workers: int = 10,
+        batch_size: int = 20,
+    ) -> Dict[str, Tuple[float, str]]:
+        """yfinance Ticker().history()로 adj close + 날짜 병렬 추출 (10단위 배치 디버그 로그)"""
+        result = {}
+
+        def fetch_single(sym: str):
+            for _ in range(3):  # 최대 3회 재시도
+                try:
+                    time.sleep(random.uniform(0.1, 0.3))
+                    ticker = yf.Ticker(sym)
+                    df = ticker.history(
+                        period=f"{days}d",
+                        interval="1d",
+                        auto_adjust=False,
+                    )
+
+                    if df.empty or "Adj Close" not in df.columns:
+                        continue
+
+                    last_row = df.dropna(subset=["Adj Close"]).iloc[-1]
+                    adj_close = float(last_row["Adj Close"])
+                    date = last_row.name.date()
+                    return sym, (adj_close, str(date))
+
+                except Exception as e:
+                    self.logger.log("WARN", f"{sym} yfinance history 중 예외 발생: {e}")
+            return None
+
+        for i in range(0, len(symbols), batch_size):
+            batch_num = i // batch_size + 1
+            if batch_num % 10 == 0:
+                self.logger.log(
+                    "DEBUG", f"{batch_num}번째 배치 실행 중 (index {i}~{i+batch_size})"
+                )
+
+            batch = symbols[i : i + batch_size]
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {executor.submit(fetch_single, sym): sym for sym in batch}
+                for future in as_completed(futures):
+                    result_item = future.result()
+                    if result_item:
+                        sym, value = result_item
+                        result[sym] = value
+
+        return result
 
     # ────────────────────────── public ▶ crawl ──────────────────────────
     def crawl(self):
@@ -469,34 +502,22 @@ class YFinanceStockCrawler(CrawlerInterface):
     def _crawl_batch(self, batch: List[str], batch_id: int):
         batch_results = []
 
-        try:
-            tickers = yf.Tickers(" ".join(batch))
-        except Exception as e:
-            raise BatchProcessingException(
-                f"yf.Tickers 호출 실패: {str(e)}", source=batch
-            )
-
         if batch_id % 10 == 0:
             self.logger.log("DEBUG", f"[배치 진행] [{batch_id}]번째 배치 시작")
 
         for symbol in batch:
             try:
-                stock = tickers.tickers.get(symbol)
-                if not stock:
-                    raise DataNotFoundException(
-                        "해당 종목을 찾을 수 없음", source=symbol
-                    )
+                stock = yf.Ticker(symbol, session=session)
 
                 # ▶ adj_close / market_cap 캐시
                 cache_item = self._cached_price_cap.get(symbol)
                 if not cache_item:
+                    self.logger.log("DEBUG", f"[{symbol}]가격/시총 캐시 누락")
                     raise DataNotFoundException("가격/시총 캐시 누락", source=symbol)
                 adj_close, market_cap, _ = cache_item
 
                 # ✅ df 가공
                 df_min = self._process_minute_data(stock, symbol, adj_close, market_cap)
-
-                # self.logger.log("DEBUG", f"{symbol} 크롤링 완료")
 
                 batch_results.append(
                     {
