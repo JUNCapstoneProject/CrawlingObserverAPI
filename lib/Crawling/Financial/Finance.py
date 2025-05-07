@@ -2,6 +2,9 @@ import yfinance as yf
 import pandas as pd
 import concurrent.futures
 from typing import List
+from curl_cffi import requests as curl_requests
+
+session = curl_requests.Session(impersonate="chrome")
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 from lib.Exceptions.exceptions import *
@@ -91,7 +94,7 @@ class FinancialCrawler(CrawlerInterface):
                 self.logger.log("ERROR", f"yf.Tickers 실패 (batch={batch}): {str(e)}")
                 continue
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_symbol = {
                     executor.submit(self.fetch_symbol_data, symbol, tickers): symbol
                     for symbol in batch
@@ -120,7 +123,7 @@ class FinancialCrawler(CrawlerInterface):
 
     def fetch_symbol_data(self, symbol: str, tickers) -> List[dict]:
         results = []
-        stock = tickers.tickers.get(symbol)
+        stock = yf.Ticker(symbol, session=session)
         if not stock:
             raise DataNotFoundException(f"{symbol}: 종목 데이터 없음", source=symbol)
 

@@ -33,6 +33,7 @@ class CrawlerInterface(ABC):
     def _execute_crawl(self):
         self.logger.log("START", f"[{self.name}] 크롤링 시작")
         result = self.crawl()
+        self.logger.log_summary()
 
         if result:
             for result_item in result:
