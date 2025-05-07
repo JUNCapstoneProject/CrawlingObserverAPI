@@ -35,10 +35,10 @@ jobs:
           # 'exit-zero'는 모든 에러를 경고로 처리
           # Github 에디터는 한 줄에 127자까지만 보임
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Print Python sys.path (before tests)
+        run: python -c "import sys; print('PYTHON sys.path:', sys.path)"
+
       - name: Test with pytest
         run: |
-          # tests 디렉토리 안의 test_*.py 또는 *_test.py를 실행시킴
           PYTHONPATH=. python -m pytest
-
-      - name: Print Python sys.path
-        run: python -c "import sys; print('sys.path:', sys.path)"
