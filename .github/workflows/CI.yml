@@ -36,9 +36,11 @@ jobs:
           # Github 에디터는 한 줄에 127자까지만 보임
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-      - name: Print Python sys.path (before tests)
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
+
+      - name: Print Python sys.path
         run: python -c "import sys; print('PYTHON sys.path:', sys.path)"
 
       - name: Test with pytest
-        run: |
-          PYTHONPATH=. python -m pytest
+        run: python -m pytest
