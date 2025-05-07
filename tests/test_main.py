@@ -14,7 +14,7 @@ def patch_config_path():
         # 자동으로 patch 해제됨
 
 
-@patch("lib.Crawling.run")
+@patch("main.run")
 def test_main_run_called(mock_run):
     from main import main  # patch 이후에 import 해야 반영됨
 
