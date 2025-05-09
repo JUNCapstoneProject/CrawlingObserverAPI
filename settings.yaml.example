@@ -1,26 +1,34 @@
+# API 키 설정
 API_KEYS:
-  Fred: "your_api_key"
+  Fred: "API_KEY"
 
+# 크롤링 관련 설정
 symbol_size:
-  total: 6000
+  total: 100
 
 articles:
   size: 10
-  retry: 50
+  retry: 100
 
+# 저장 방식 설정
 save_method:
-  save_to_file: true
+  save_to_file: false
   save_to_DB: true
 
+# 데이터베이스 설정
 database:
-  url: mysql+pymysql://username:password@url:port/db_name
+  url: mysql+pymysql://username:password@databaseURL/your_database
 
+# 로깅 설정
 color_log: true
+print_error_log: false
 
+# 테스트 모드 설정
 is_test:
   toggle: true
-  interval: 10
+  interval: 100
 
+# 크롤러 스위치 설정
 crawler_switch:
   news: true
   reports: true

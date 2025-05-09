@@ -1,12 +1,34 @@
 import json
 import os
+from lib.Logger.logger import Logger  # Logger 클래스 임포트
+
+# 로거 인스턴스 생성
+logger = Logger("LoadConfig")
 
 
 def load_config(filename):
-    """config/ 디렉토리의 JSON 파일을 절대 경로로 로드하는 함수"""
-    # 현재 파일(`load_config` 함수가 포함된 파일)의 절대 경로를 기준으로 설정
-    base_dir = os.path.dirname(os.path.abspath(__file__))  # 현재 파일의 디렉토리
-    config_path = os.path.join(base_dir, filename)  # 절대 경로 생성
+    """config/ 디렉토리의 JSON 파일을 절대 경로로 로드하는 함수
 
-    with open(config_path, "r", encoding="utf-8") as file:
-        return json.load(file)
+    Args:
+        filename (str): 로드할 JSON 파일의 이름.
+
+    Returns:
+        dict: JSON 파일의 내용을 딕셔너리로 반환.
+
+    Raises:
+        FileNotFoundError: 파일이 존재하지 않을 경우 발생.
+        json.JSONDecodeError: JSON 파일 파싱에 실패할 경우 발생.
+    """
+    # 현재 파일의 디렉토리를 기준으로 설정 파일 경로 생성
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(base_dir, filename)
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except FileNotFoundError as e:
+        logger.log("ERROR", f"Config file not found: {config_path}")
+        raise
+    except json.JSONDecodeError as e:
+        logger.log("ERROR", f"Failed to parse JSON file: {config_path}")
+        raise

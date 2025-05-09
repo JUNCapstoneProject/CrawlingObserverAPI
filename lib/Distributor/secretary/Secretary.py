@@ -4,6 +4,7 @@ import pandas as pd
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime, timedelta, timezone
 
+from lib.Distributor.secretary.session import SessionLocal
 from lib.Logger.logger import Logger
 from lib.Distributor.secretary.models.core import CrawlingLog, FailLog
 from lib.Distributor.secretary.handlers import (
@@ -21,8 +22,8 @@ now_kst = datetime.now(KST)
 
 
 class Secretary:
-    def __init__(self, db_session):
-        self.db = db_session
+    def __init__(self):
+        self.db = SessionLocal()
         self.handlers = {}
         self.logger = Logger("Secretary")  # 통합 로그 클래스 적용
         self._auto_register()
