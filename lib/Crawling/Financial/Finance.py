@@ -4,7 +4,6 @@ import concurrent.futures
 from typing import List
 from curl_cffi import requests as curl_requests
 
-session = curl_requests.Session(impersonate="chrome")
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 from lib.Exceptions.exceptions import *
@@ -123,7 +122,7 @@ class FinancialCrawler(CrawlerInterface):
 
     def fetch_symbol_data(self, symbol: str, tickers) -> List[dict]:
         results = []
-        stock = yf.Ticker(symbol, session=session)
+        stock = yf.Ticker(symbol)
         if not stock:
             raise DataNotFoundException(f"{symbol}: 종목 데이터 없음", source=symbol)
 

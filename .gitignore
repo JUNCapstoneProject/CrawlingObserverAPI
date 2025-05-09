@@ -1,27 +1,28 @@
-# VSCode 설정
+# VSCode 설정 파일
 .vscode/
 
-# Python 캐시
+# Python 캐시 파일
 __pycache__/
 **/__pycache__/
 
-# Jupyter 체크포인트
+# Jupyter 노트북 체크포인트 및 임시 파일
 .ipynb_checkpoints/
-
-# 임시 노트북
 **/imsi.ipynb
 
-# poetry 관련
+# Poetry 관련 파일
 poetry.lock
 pyproject.toml
 
+# 로그 파일
 **/Logs/
 **/logs/
+
+# 데이터 파일
 **/Datas/
 
-
+# 설정 파일
 settings.yaml
 
-
+# 특정 스크립트 파일
 lib/Distributor/secretary/utils/create_tables.py
 lib/Distributor/secretary/utils/store_company_table.py
