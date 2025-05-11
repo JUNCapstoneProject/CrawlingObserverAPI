@@ -11,3 +11,4 @@ class Company(Base):
     ticker = Column(VARCHAR(20), nullable=False, unique=True)
     name_kr = Column(VARCHAR(255), nullable=False)
     name_en = Column(VARCHAR(255), nullable=False)
+    sector = Column(VARCHAR(50))

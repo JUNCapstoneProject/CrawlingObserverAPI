@@ -72,7 +72,6 @@ def store_macro(db, crawling_id, data):
 
 def store_stock(db, crawling_id, data):
     from collections import defaultdict
-    from datetime import datetime, timedelta, time
     from sqlalchemy.dialects.mysql import insert as mysql_insert
     import pandas as pd
 
@@ -88,38 +87,8 @@ def store_stock(db, crawling_id, data):
     for row in records:
         grouped[row["Symbol"]].append(row)
 
-    prev_close_map: dict[str, float | None] = {}
-
     for ticker, rows in grouped.items():
-        # 이번 배치에서 가장 이른 시각
-        first_ts: datetime = min(r["posted_at"] for r in rows)
-        cutoff = datetime.combine(first_ts.date() - timedelta(days=1), time(16, 0))
-
-        prev = (
-            db.query(Stock.close)
-            .filter(Stock.ticker == ticker, Stock.posted_at <= cutoff)
-            .order_by(Stock.posted_at.desc())
-            .first()
-        )
-
-        prev_close_map[ticker] = prev.close if prev else None
-
-    for ticker, rows in grouped.items():
-        rows.sort(key=lambda r: r["posted_at"])  # 시계열 순서
-        prev_close = prev_close_map[ticker]
-
         for row in rows:
-            cur_close = row.get("Close")
-
-            # 전날 종가 대비 변동률(%) 계산
-            change = 0.0
-            if prev_close and cur_close:
-                try:
-                    change = round((float(cur_close) / float(prev_close) - 1) * 100, 2)
-                except ZeroDivisionError:
-                    change = 0.0
-            prev_close = cur_close or prev_close  # 다음 루프용 캐시
-
             stmt = (
                 mysql_insert(Stock).values(
                     crawling_id=crawling_id,
@@ -128,9 +97,9 @@ def store_stock(db, crawling_id, data):
                     open=row.get("Open"),
                     high=row.get("High"),
                     low=row.get("Low"),
-                    close=cur_close,
+                    close=row.get("Close"),
                     volume=row.get("Volume"),
-                    change=change,
+                    change=row.get("Change"),  # 이미 계산된 change 값 사용
                     adj_close=row.get("Adj Close"),
                     market_cap=row.get("MarketCap"),
                 )
@@ -140,9 +109,9 @@ def store_stock(db, crawling_id, data):
                     open=row.get("Open"),
                     high=row.get("High"),
                     low=row.get("Low"),
-                    close=cur_close,
+                    close=row.get("Close"),
                     volume=row.get("Volume"),
-                    change=change,
+                    change=row.get("Change"),
                     adj_close=row.get("Adj Close"),
                     market_cap=row.get("MarketCap"),
                     posted_at=row["posted_at"],
