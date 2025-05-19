@@ -4,7 +4,7 @@ import json
 import zlib
 
 # Bridge
-from lib.Distributor.socket.Client import SocketInterface
+from lib.Distributor.socket.Interface import SocketInterface
 from lib.Distributor.socket.messages.request import requests_message
 
 

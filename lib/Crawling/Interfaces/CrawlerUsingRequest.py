@@ -1,6 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
+import yfinance as yf
+
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 from lib.Crawling.config.headers import HEADERS
@@ -43,6 +45,33 @@ class CrawlerUsingRequest(CrawlerInterface):
             logger=self.logger,
         )
 
+    def _seperate_by_ticker(self, result):
+        df = result.get("df")
+        if df is None or "tag" not in df.columns:
+            return result
+
+        tags = df.iloc[0]["tag"]
+        if not tags or not tags.strip():
+            return None
+
+        tickers = [t.strip() for t in tags.split(",") if t.strip()]
+        separated_results = []
+
+        for ticker in tickers:
+            try:
+                info = yf.Ticker(ticker).info
+                if info.get("quoteType") == "INDEX":
+                    continue
+            except Exception:
+                continue
+            new_result = result.copy()
+            new_df = df.copy()
+            new_df.at[0, "tag"] = ticker
+            new_result["df"] = new_df
+            separated_results.append(new_result)
+
+        return separated_results if separated_results else None
+
     def crawl(self):
         results = []
         try:
@@ -78,7 +107,9 @@ class CrawlerUsingRequest(CrawlerInterface):
                 else:
                     raise DataNotFoundException("기사 내용 없음", source=href)
 
-                results.append(result)
+                separated = self._seperate_by_ticker(result)
+                if separated:
+                    results.extend(separated)
 
             return results
 

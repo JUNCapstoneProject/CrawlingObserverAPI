@@ -9,7 +9,7 @@ def run():
 
     # 설정 정보를 매핑하여 관리
     crawler_configs = {
-        "YahooFinance": YahooNewsCrawler,
+        "YahooFinanceNews": YahooNewsCrawler,
         "InvestingNews": InvestingNewsCrawler,
     }
 
