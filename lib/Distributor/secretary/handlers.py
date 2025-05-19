@@ -85,25 +85,23 @@ def store_stock(db, crawling_id, data):
 
     grouped = defaultdict(list)
     for row in records:
-        grouped[row["Symbol"]].append(row)
+        grouped[row["company_id"]].append(row)
 
-    for ticker, rows in grouped.items():
+    for company_id, rows in grouped.items():
         for row in rows:
             stmt = (
-                mysql_insert(Stock).values(
+                mysql_insert(Stock)
+                .values(
                     crawling_id=crawling_id,
-                    ticker=ticker,
+                    company_id=company_id,
                     posted_at=row["posted_at"],
                     open=row.get("Open"),
                     high=row.get("High"),
                     low=row.get("Low"),
                     close=row.get("Close"),
                     volume=row.get("Volume"),
-                    change=row.get("Change"),  # 이미 계산된 change 값 사용
-                    adj_close=row.get("Adj Close"),
-                    market_cap=row.get("MarketCap"),
+                    change=row.get("Change"),
                 )
-                # UNIQUE(ticker, posted_at) 가 충돌하면 내용 갱신
                 .on_duplicate_key_update(
                     crawling_id=crawling_id,
                     open=row.get("Open"),
@@ -112,8 +110,6 @@ def store_stock(db, crawling_id, data):
                     close=row.get("Close"),
                     volume=row.get("Volume"),
                     change=row.get("Change"),
-                    adj_close=row.get("Adj Close"),
-                    market_cap=row.get("MarketCap"),
                     posted_at=row["posted_at"],
                 )
             )
