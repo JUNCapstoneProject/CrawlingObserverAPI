@@ -8,11 +8,7 @@ requests_message = {
         "Request Method": "GET",
         "Authorization": "Bearer",
     },
-    "body": {
-        "client_id": None,
-        "client_secret": None,
-        "item": {}  # 아래 item중 한개
-    }
+    "body": {"client_id": None, "client_secret": None, "item": {}},  # 아래 item중 한개
 }
 
 news_item = {
@@ -20,33 +16,33 @@ news_item = {
     "data": {
         "news_data": None,
         "stock_history": {
-            'Date': [],
-            'Open': [],
-            'Close': [],
-            'Adj Close': [],
-            'High': [],
-            'Low': [],
-            'Volume': [],
-            'Market Cap': [],
+            "Date": [],
+            "Open": [],
+            "Close": [],
+            "Adj Close": [],
+            "High": [],
+            "Low": [],
+            "Volume": [],
+            "Market Cap": [],
         },
         "market_history": {
-            'Date': [],
-            'Open': [],
-            'Close': [],
-            'Adj Close': [],
-            'High': [],
-            'Low': [],
-            'Volume': [],
-            'Market Cap': [],
+            "Date": [],
+            "Open": [],
+            "Close": [],
+            "Adj Close": [],
+            "High": [],
+            "Low": [],
+            "Volume": [],
+            # 'Market Cap': [],
         },
         "income_statement": {
             "Total Revenue": [],
-            'Normalized Income': [],
+            "Normalized Income": [],
         },
         "info": {
-            'priceToBook': [],
-        }
-    }
+            "priceToBook": [],
+        },
+    },
 }
 
 finance_item = {
@@ -64,7 +60,7 @@ finance_item = {
             "Stockholders Equity": [],
             "Total Assets": [],
             "Retained Earnings": [],
-            "Inventory": []
+            "Inventory": [],
         },
         "income_statement": {
             "Total Revenue": [],
@@ -74,12 +70,12 @@ finance_item = {
             "Operating Income": [],
             "Other Non Operating Income Expenses": [],
             "Reconciled Depreciation": [],
-            "EBITDA": []
+            "EBITDA": [],
         },
         "cash_flow": {
             "Operating Cash Flow": [],
             "Investing Cash Flow": [],
-            "Capital Expenditure": []
+            "Capital Expenditure": [],
         },
         "chart": {
             "timestamp": [],  # yyyy-mm-dd HH:MM:SS 형식
@@ -91,6 +87,6 @@ finance_item = {
             # "l": [],  # Low
             # "t": [],  # Time
             # "n": []   # Number of trades
-        }
-    }
+        },
+    },
 }

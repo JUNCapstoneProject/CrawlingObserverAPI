@@ -27,3 +27,9 @@ crawler_switch:
   reports: true
   financial: true
   stock: true
+
+notifier_interval: 60
+
+run_condition:
+  crawler: true
+  notifier: true

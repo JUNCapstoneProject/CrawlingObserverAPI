@@ -1,25 +1,32 @@
+from threading import Thread
+
+
 # Import local modules
-from lib.Crawling import run  # 크롤링 실행 함수
+from lib.Crawling import run as run_crawling  # 크롤링 실행 함수
 from lib.Config.config import Config  # 설정 로드
 from lib.Exceptions.traceback import log_traceback  # 트레이스백 처리 함수
-
-# from Utill.Socket.Server import SocketServer  # 소켓 서버 (필요 시 활성화)
+from lib.Distributor.notifier import run as run_notifier  # notifier
 
 
 def main():
     try:
-        # Config 초기화
         Config.init()
 
-        # 크롤러 실행
-        run()
+        threads = []
 
-        # 소켓 서버 실행 (외부 요청 대기) - 필요 시 활성화
-        # server = SocketServer()
-        # server.run()
+        if Config.get("run_condition.crawler", True):
+            threads.append(Thread(target=run_crawling, name="CrawlerThread"))
+
+        if Config.get("run_condition.notifier", True):
+            threads.append(Thread(target=run_notifier, name="NotifierThread"))
+
+        for t in threads:
+            t.start()
+
+        for t in threads:
+            t.join()
 
     except Exception as e:
-        # 트레이스백 처리 함수 호출
         log_traceback(e)
 
 
