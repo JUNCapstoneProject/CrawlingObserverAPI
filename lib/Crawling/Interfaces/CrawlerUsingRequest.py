@@ -35,7 +35,7 @@ class CrawlerUsingRequest(CrawlerInterface):
                 "url": url,
             }
 
-        # ✅ retry를 함수 호출 형태로 적용
+        # retry를 함수 호출 형태로 적용
         return retry_with_exponential_backoff(
             _fetch,
             max_retries=self.max_retries,
@@ -45,32 +45,32 @@ class CrawlerUsingRequest(CrawlerInterface):
             logger=self.logger,
         )
 
-    def _seperate_by_ticker(self, result):
-        df = result.get("df")
-        if df is None or "tag" not in df.columns:
-            return result
+    # def _seperate_by_ticker(self, result):
+    #     df = result.get("df")
+    #     if df is None or "tag" not in df.columns:
+    #         return result
 
-        tags = df.iloc[0]["tag"]
-        if not tags or not tags.strip():
-            return None
+    #     tags = df.iloc[0]["tag"]
+    #     if not tags or not tags.strip():
+    #         return None
 
-        tickers = [t.strip() for t in tags.split(",") if t.strip()]
-        separated_results = []
+    #     tickers = [t.strip() for t in tags.split(",") if t.strip()]
+    #     separated_results = []
 
-        for ticker in tickers:
-            try:
-                info = yf.Ticker(ticker).info
-                if info.get("quoteType") == "INDEX":
-                    continue
-            except Exception:
-                continue
-            new_result = result.copy()
-            new_df = df.copy()
-            new_df.at[0, "tag"] = ticker
-            new_result["df"] = new_df
-            separated_results.append(new_result)
+    #     for ticker in tickers:
+    #         try:
+    #             info = yf.Ticker(ticker).info
+    #             if info.get("quoteType") == "INDEX":
+    #                 continue
+    #         except Exception:
+    #             continue
+    #         new_result = result.copy()
+    #         new_df = df.copy()
+    #         new_df.at[0, "tag"] = ticker
+    #         new_result["df"] = new_df
+    #         separated_results.append(new_result)
 
-        return separated_results if separated_results else None
+    #     return separated_results if separated_results else None
 
     def crawl(self):
         results = []
@@ -107,9 +107,11 @@ class CrawlerUsingRequest(CrawlerInterface):
                 else:
                     raise DataNotFoundException("기사 내용 없음", source=href)
 
-                separated = self._seperate_by_ticker(result)
-                if separated:
-                    results.extend(separated)
+                results.append(result)
+
+                # separated = self._seperate_by_ticker(result)
+                # if separated:
+                #     results.extend(separated)
 
             return results
 

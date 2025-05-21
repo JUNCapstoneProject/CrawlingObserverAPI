@@ -68,7 +68,7 @@ class YFinanceStockCrawler(CrawlerInterface):
         from .yf_quarterly import YF_Quarterly
         from .yf_daily import YF_Daily
 
-        self.logger.log("INFO", "분기 및 일간 데이터 확인 시작")
+        self.logger.log("DEBUG", "분기 및 일간 데이터 확인 시작")
 
         YF_Quarterly(self._company_map).crawl()
         YF_Daily(self._company_map).crawl()

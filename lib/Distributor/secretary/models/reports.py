@@ -19,13 +19,12 @@ class Report(Base):
     author = Column(VARCHAR(45), nullable=False)
     posted_at = Column(DateTime, nullable=False)
     content = Column(LONGTEXT, nullable=False)
-    ai_analysis = Column(VARCHAR(512), nullable=True)
 
 
 class ReportTag(Base):
     __tablename__ = "reports_tag"
 
-    crawling_id = Column(
-        VARCHAR(64), ForeignKey("reports.crawling_id"), primary_key=True, nullable=False
-    )
-    tag = Column(VARCHAR(255), nullable=False, primary_key=True)
+    tag_id = Column(Integer, primary_key=True, nullable=True, autoincrement=True)
+    crawling_id = Column(VARCHAR(64), ForeignKey("reports.crawling_id"), nullable=False)
+    tag = Column(VARCHAR(50), ForeignKey("company.ticker"), nullable=False)
+    ai_analysis = Column(VARCHAR(45), nullable=False)

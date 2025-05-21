@@ -1,12 +1,10 @@
-from sqlalchemy import text, update
+from sqlalchemy import text
 import time
+from abc import abstractmethod
 
 from lib.Logger.logger import Logger
 from lib.Distributor.socket.Client import SocketClient
 from lib.Distributor.secretary.session import get_session
-from lib.Distributor.secretary.models.news import News
-from lib.Distributor.secretary.models.reports import Report
-from lib.Distributor.secretary.models.financials import FinancialStatement
 from lib.Config.config import Config  # 설정 관리 클래스
 
 
@@ -15,13 +13,14 @@ class NotifierBase:
         self.client = SocketClient()
         self.logger = Logger(name)
         self.interval_sec = Config.get("notifier_interval", 600)
+        self.socket_condition = Config.get("socket_condition", True)
 
     def run_all(self):
         from lib.Distributor.notifier.Article_notifier import ArticleNotifier
         from lib.Distributor.notifier.Financial_notifier import FinancialNotifier
 
         self.logger.log(
-            "START", f"[Notifier] 주기적 실행 시작 (interval: {self.interval_sec}s)"
+            "START", f"[Notifier] 실행 시작 (interval: {self.interval_sec}s)"
         )
         try:
             while True:
@@ -49,37 +48,6 @@ class NotifierBase:
             self.logger.log("WARN", f"[Fetch] Failed to query {view_name}: {e}")
             return []
 
-    def _update_analysis(
-        self, crawling_id: str, analysis: str, tables: list[str]
-    ) -> None:
-        model_map = {
-            "news": News,
-            "reports": Report,
-            "financials": FinancialStatement,
-        }
-        try:
-            with get_session() as session:
-                updated = False
-                for tbl in tables:
-                    model = model_map[tbl]
-                    stmt = (
-                        update(model)
-                        .where(model.crawling_id == crawling_id)
-                        .values(ai_analysis=analysis)
-                    )
-                    result = session.execute(stmt)
-                    if result.rowcount > 0:
-                        updated = True
-                if updated:
-                    session.commit()
-                    self.logger.log(
-                        "DEBUG",
-                        f"[Update] crawling_id {crawling_id} updated in {tables}",
-                    )
-                else:
-                    self.logger.log(
-                        "WARN",
-                        f"[Update] crawling_id {crawling_id} not matched in {tables}",
-                    )
-        except Exception as e:
-            self.logger.log("ERROR", f"[Update] crawling_id {crawling_id}: {e}")
+    @abstractmethod
+    def _update_analysis():
+        pass
