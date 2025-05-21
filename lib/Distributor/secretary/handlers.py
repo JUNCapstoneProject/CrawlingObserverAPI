@@ -1,7 +1,10 @@
+from sqlalchemy import select
+
 from lib.Distributor.secretary.models.news import News, NewsTag
 from lib.Distributor.secretary.models.macro import MacroIndex, MacroEconomics
 from lib.Distributor.secretary.models.reports import Report, ReportTag
 from lib.Distributor.secretary.models.stock import Stock
+from lib.Distributor.secretary.models.company import Company
 from lib.Distributor.secretary.models.financials import (
     FinancialStatement,
     IncomeStatement,
@@ -12,38 +15,62 @@ from lib.Distributor.secretary.models.financials import (
 
 def store_news(db, crawling_id, data):
     for row in data:
-        db.add(
-            News(
-                crawling_id=crawling_id,
-                title=row.get("title"),
-                author=row.get("author"),
-                organization=row.get("organization"),
-                posted_at=row.get("posted_at"),
-                content=row.get("content"),
-                hits=row.get("hits"),
-                ai_analysis=row.get("ai_analysis"),
-            )
+        tags = row.get("tag", "")
+        if not tags:
+            continue
+
+        # 쉼표로 분리된 태그 중 company에 속하는 태그만 추출
+        valid_tags = []
+        for tag in [t.strip() for t in tags.split(",") if t.strip()]:
+            exists = db.execute(select(Company).where(Company.ticker == tag)).first()
+            if exists:
+                valid_tags.append(tag)
+
+        # company에 속하는 태그가 하나도 없으면 뉴스 저장하지 않음
+        if not valid_tags:
+            continue
+
+        # 뉴스 한 건 저장
+        news = News(
+            crawling_id=crawling_id,
+            title=row.get("title"),
+            author=row.get("author"),
+            organization=row.get("organization"),
+            posted_at=row.get("posted_at"),
+            content=row.get("content"),
+            hits=row.get("hits"),
         )
-        tag = row.get("tag")
-        if tag:
+        db.add(news)
+
+        # 유효한 태그만 저장
+        for tag in valid_tags:
             db.add(NewsTag(crawling_id=crawling_id, tag=tag))
 
 
 def store_reports(db, crawling_id, data):
     for row in data:
-        db.add(
-            Report(
-                crawling_id=crawling_id,
-                title=row.get("title"),
-                author=row.get("author"),
-                hits=row.get("hits"),
-                posted_at=row.get("posted_at"),
-                content=row.get("content"),
-                ai_analysis=row.get("ai_analysis"),
-            )
+        tags = row.get("tag", "")
+        if not tags:
+            continue
+
+        valid_tags = []
+        for tag in [t.strip() for t in tags.split(",") if t.strip()]:
+            exists = db.execute(select(Company).where(Company.ticker == tag)).first()
+            if exists:
+                valid_tags.append(tag)
+
+        report = Report(
+            crawling_id=crawling_id,
+            title=row.get("title"),
+            author=row.get("author"),
+            hits=row.get("hits"),
+            posted_at=row.get("posted_at"),
+            content=row.get("content"),
         )
-        tag = row.get("tag")
-        if tag:  # None 또는 빈 문자열이 아닌 경우
+        db.add(report)
+
+        # 유효한 태그만 저장
+        for tag in valid_tags:
             db.add(ReportTag(crawling_id=crawling_id, tag=tag))
 
 

@@ -1,10 +1,12 @@
 import copy
 import yfinance as yf
-from sqlalchemy import text
+from sqlalchemy import text, update
 
 from lib.Distributor.notifier.Notifier import NotifierBase
 from lib.Distributor.socket.messages.request import news_item
 from lib.Distributor.secretary.session import get_session
+from lib.Distributor.secretary.models.news import NewsTag
+from lib.Distributor.secretary.models.reports import ReportTag
 
 
 class ArticleNotifier(NotifierBase):
@@ -24,12 +26,14 @@ class ArticleNotifier(NotifierBase):
                 continue
 
             try:
-                result = self.client.request_tcp(item)
-                analysis = result.get("message")
+                if self.socket_condition:
+                    result = self.client.request_tcp(item)
+                    analysis = result.get("message")
+                else:
+                    analysis = "notifier 테스트"
+
                 if analysis:
-                    self._update_analysis(
-                        row["crawling_id"], analysis, ["news", "reports"]
-                    )
+                    self._update_analysis(row["tag_id"], analysis, row["source"])
                 else:
                     self.logger.log(
                         "WARN", f"[Article] no result for {row['crawling_id']}"
@@ -51,15 +55,20 @@ class ArticleNotifier(NotifierBase):
                 )
                 return None
 
-            content = (row.get("title") or "") + (row.get("content") or "")
-            if not content.strip():
+            title = row.get("title") or ""
+            content = row.get("content") or ""
+
+            if not title.strip() and not content.strip():
                 self.logger.log(
                     "WARN",
                     f"[BuildItem] title+content empty for {row.get('crawling_id')}",
                 )
                 return None
 
-            item["data"]["news_data"] = content
+            item["data"]["news_data"] = {
+                "title": title,
+                "content": content,
+            }
             item["data"]["stock_history"] = self._get_stock_history(tag)
             item["data"]["market_history"] = self._get_market_history(tag)
             item["data"]["income_statement"] = self._get_income_statement(tag)
@@ -210,3 +219,34 @@ class ArticleNotifier(NotifierBase):
         except Exception as e:
             self.logger.log("ERROR", f"[PriceToBook] {tag}: {e}")
             return {"priceToBook": []}
+
+    def _update_analysis(self, tag_id: str, analysis: str, source: str) -> None:
+        model_map = {
+            "news": NewsTag,
+            "report": ReportTag,
+        }
+
+        model = model_map.get(source)
+        if not model:
+            self.logger.log("ERROR", f"[Update] unknown source: {source}")
+            return
+
+        try:
+            with get_session() as session:
+                stmt = (
+                    update(model)
+                    .where(model.tag_id == tag_id)
+                    .values(ai_analysis=analysis)
+                )
+                result = session.execute(stmt)
+                if result.rowcount > 0:
+                    session.commit()
+                    self.logger.log(
+                        "DEBUG", f"[Update] tag_id {tag_id} updated in {source}"
+                    )
+                else:
+                    self.logger.log(
+                        "WARN", f"[Update] tag_id {tag_id} not matched in {source}"
+                    )
+        except Exception as e:
+            self.logger.log("ERROR", f"[Update] tag_id {tag_id}: {e}")
