@@ -27,7 +27,6 @@ class Logger:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     common_log_file = os.path.join(base_log_dir, f"log_common_{timestamp}.log")
 
-    error_count = 0
     error_log_dir = os.path.join(base_log_dir, "errors")
     os.makedirs(error_log_dir, exist_ok=True)
     error_log_file = os.path.join(error_log_dir, f"log_error_{timestamp}.log")
@@ -39,6 +38,7 @@ class Logger:
         os.makedirs(self.indiv_log_dir, exist_ok=True)
 
         self.log_file = os.path.join(self.indiv_log_dir, f"log_{Logger.timestamp}.log")
+        self.error_count = 0
 
     def log(self, level: str, message: str):
         """로그 메시지 출력 및 저장"""
@@ -60,7 +60,7 @@ class Logger:
 
     def _handle_error_log(self, formatted: str, color: str, reset: str):
         """에러 로그 처리"""
-        Logger.error_count += 1
+        self.error_count += 1
         with open(Logger.error_log_file, "a", encoding="utf-8") as ef:
             ef.write(formatted + "\n")
         if Config.get("print_error_log", True):
@@ -87,12 +87,12 @@ class Logger:
         timestamp = datetime.now().strftime("%m-%d %H:%M:%S")
         level = "SUMMARY"
         message = (
-            f"로그 저장 완료-`{Logger.base_log_dir}` ERROR 발생: {Logger.error_count}개"
+            f"로그 저장 완료-`{Logger.base_log_dir}` ERROR 발생: {self.error_count}개"
         )
 
-        color = COLOR_MAP["ERROR"] if Logger.error_count > 0 else COLOR_MAP["WAIT"]
+        color = COLOR_MAP["ERROR"] if self.error_count > 0 else COLOR_MAP["WAIT"]
         reset = COLOR_MAP["RESET"] if Logger.use_color else ""
 
         formatted = f"[{timestamp}] [{level:<6}] {self.name:<24} - {message}"
         print(f"{color}{formatted}{reset}")
-        Logger.error_count = 0
+        self.error_count = 0
