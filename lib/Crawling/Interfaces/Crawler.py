@@ -43,12 +43,13 @@ class CrawlerInterface(ABC):
         """크롤링 실행 및 결과 처리"""
         self.logger.log("START", f"[{self.name}] 크롤링 시작")
         result = self.crawl()
-        self.logger.log_summary()
 
         if result:
             self._process_result(result)
         else:
             self.logger.log("WARN", f"[{self.name}] 크롤링 결과 없음")
+
+        self.logger.log_summary()
 
     def _process_result(self, result):
         """크롤링 결과 처리"""
