@@ -1,7 +1,6 @@
 from datetime import date
 import yfinance as yf
 from typing import Optional
-import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from lib.Crawling.Stock.YFinance_stock import YFinanceStockCrawler
@@ -117,59 +116,27 @@ class YF_Quarterly(YFinanceStockCrawler):
             return None
 
     def _get_shares_outstanding(self, ticker: str) -> Optional[int]:
-        cik = self._company_map.get(ticker, {}).get("cik")
-        if not cik:
-            return None
-
-        concept_paths = [
-            ("us-gaap", "CommonStockSharesOutstanding"),
-            ("dei", "EntityCommonStockSharesOutstanding"),
-            ("us-gaap", "WeightedAverageNumberOfSharesOutstandingBasic"),
-            ("ifrs-full", "SharesOutstanding"),
-            ("ifrs-full", "OrdinarySharesNumber"),
-        ]
-
-        headers = {"User-Agent": "StockCrawler/1.0 (contact: you@example.com)"}
-        for taxonomy, concept in concept_paths:
-            url = (
-                f"https://data.sec.gov/api/xbrl/companyconcept/"
-                f"CIK{cik}/{taxonomy}/{concept}.json"
-            )
-            try:
-                r = requests.get(url, headers=headers, timeout=8)
-                if r.status_code == 404:
-                    continue
-                r.raise_for_status()
-                data = r.json()
-                units = data.get("units", {})
-                all_units = [v for vs in units.values() for v in vs]
-                if not all_units:
-                    continue
-
-                latest = max(all_units, key=lambda x: x.get("end", ""))
-                shares = int(latest.get("val", 0))
-                if shares > 0:
-                    return shares
-            except Exception as e:
-                self.logger.log("DEBUG", f"SEC 개념 '{concept}' 실패: {e}")
-
-        # fallback to Yahoo Finance
         try:
             tkr = yf.Ticker(ticker)
             shares = None
+
+            # 먼저 fast_info에서 시도
             if hasattr(tkr, "fast_info"):
                 shares = tkr.fast_info.get("sharesOutstanding")
+
+            # fallback to 일반 info
             if not shares:
                 try:
                     shares = tkr.get_info()["sharesOutstanding"]
                 except AttributeError:
                     shares = tkr.info.get("sharesOutstanding")
+
             if shares:
                 return int(shares)
         except Exception as e:
-            self.logger.log("DEBUG", f"Yahoo Finance shares 실패: {e}")
+            print(f"DEBUG: {ticker} - Yahoo Finance shares 조회 실패: {e}")
 
-        self.logger.log("WARN", f"{ticker}의 shares 수집 실패")
+        print(f"WARN: {ticker} - sharesOutstanding 정보 없음")
         return None
 
     def save_to_db(self, ticker: str, data: dict) -> None:

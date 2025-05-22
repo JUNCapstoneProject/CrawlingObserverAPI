@@ -3,6 +3,7 @@ import pandas as pd
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 from lib.Exceptions.exceptions import *
+from lib.Logger.logger import Logger  # 로깅 클래스
 
 
 class FredCrawler(CrawlerInterface):
@@ -27,6 +28,7 @@ class FredCrawler(CrawlerInterface):
             "Consumer Confidence Index (CCI)": "UMCSENT",
         }
         self.tag = "macro"
+        self.logger = Logger(self.__class__.__name__)
 
     def crawl(self):
         """FRED 데이터를 지표별로 분리하여 최근과 그 전 데이터 각각 반환"""
@@ -104,4 +106,7 @@ class FredCrawler(CrawlerInterface):
                     }
                 )
 
+        for result in results:
+            if "log" in result:
+                result["log"]["target_url"] = "Fred_API"
         return results

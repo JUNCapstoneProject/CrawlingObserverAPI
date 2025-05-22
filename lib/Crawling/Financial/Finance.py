@@ -118,6 +118,10 @@ class FinancialCrawler(CrawlerInterface):
                                     },
                                 }
                             )
+
+        for result in results:
+            if "log" in result:
+                result["log"]["target_url"] = "yfinance_library"
         return results
 
     def fetch_symbol_data(self, symbol: str, tickers) -> List[dict]:

@@ -33,3 +33,5 @@ notifier_interval: 60
 run_condition:
   crawler: true
   notifier: true
+
+socket_condition: true
