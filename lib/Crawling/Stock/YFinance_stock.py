@@ -122,6 +122,9 @@ class YFinanceStockCrawler(CrawlerInterface):
                             }
                         )
 
+        for result in results:
+            if "log" in result:
+                result["log"]["target_url"] = "yfinance_library"
         return results
 
     def _crawl_batch(self, batch: List[str]):
