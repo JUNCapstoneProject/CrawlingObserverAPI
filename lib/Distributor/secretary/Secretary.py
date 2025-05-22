@@ -1,7 +1,7 @@
 import json, orjson
 import hashlib
 import pandas as pd
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from datetime import datetime, timedelta, timezone
 
 from lib.Distributor.secretary.session import SessionLocal
@@ -40,6 +40,24 @@ class Secretary:
     def register(self, tag: str, handler_fn):
         self.handlers[tag] = handler_fn
 
+    def _generate_hash_id(self, tag: str, df: list[dict]) -> str:
+        def convert(obj):
+            if isinstance(obj, pd.Timestamp):
+                return obj.isoformat()
+            if isinstance(obj, dict):
+                return {k: convert(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [convert(i) for i in obj]
+            return obj
+
+        cleaned_df = convert(df)
+
+        raw_bytes = orjson.dumps(
+            {"tag": tag, "df": cleaned_df},
+            option=orjson.OPT_SORT_KEYS | orjson.OPT_NON_STR_KEYS,
+        )
+        return hashlib.sha256(raw_bytes).hexdigest()
+
     def distribute(self, result: dict | list[dict]):
         if isinstance(result, list):
             for r in result:
@@ -59,53 +77,33 @@ class Secretary:
                     "ERROR", f"단일 데이터 처리 실패 → {type(e).__name__}: {e}"
                 )
 
-    def _generate_hash_id(self, tag: str, df: list[dict]) -> str:
-        def convert(obj):
-            if isinstance(obj, pd.Timestamp):
-                return obj.isoformat()
-            if isinstance(obj, dict):
-                return {k: convert(v) for k, v in obj.items()}
-            if isinstance(obj, list):
-                return [convert(i) for i in obj]
-            return obj
-
-        cleaned_df = convert(df)
-
-        raw_bytes = orjson.dumps(
-            {"tag": tag, "df": cleaned_df},
-            option=orjson.OPT_SORT_KEYS | orjson.OPT_NON_STR_KEYS,
-        )
-        return hashlib.sha256(raw_bytes).hexdigest()
-
     def _distribute_single(self, result: dict):
-        try:
-            log = result.get("log", {})
-            tag = result.get("tag")
-            if not tag or tag not in self.handlers:
-                raise ValueError(f"등록되지 않은 tag: {tag}")
+        log = result.get("log", {})
+        tag = result.get("tag")
 
-            df = result.get("df")
-            if isinstance(df, pd.DataFrame):
-                df = df.dropna(how="all")
-                df = df.to_dict(orient="records")
+        if not tag or tag not in self.handlers:
+            self.logger.log("WARN", f"등록되지 않은 tag: {tag}")
+            return
 
-            if "fail_log" in result:
-                fail_df = [
-                    {
-                        "err_message": result["fail_log"].get("err_message"),
-                        "timestamp": datetime.now().isoformat(),
-                    }
-                ]
-                crawling_id = self._generate_hash_id(tag="fail_log", df=fail_df)
-            else:
-                crawling_id = self._generate_hash_id(tag, df)
-
-            exists = (
-                self.db.query(CrawlingLog).filter_by(crawling_id=crawling_id).first()
-            )
-            if exists:
+        df = result.get("df")
+        if isinstance(df, pd.DataFrame):
+            if df.empty:
+                self.logger.log("WARN", f"{tag}: 빈 DataFrame")
                 return
+            df = df.dropna(how="all").to_dict(orient="records")
 
+        if "fail_log" in result:
+            fail_df = [
+                {
+                    "err_message": result["fail_log"].get("err_message"),
+                    "timestamp": datetime.now().isoformat(),
+                }
+            ]
+            crawling_id = self._generate_hash_id(tag="fail_log", df=fail_df)
+        else:
+            crawling_id = self._generate_hash_id(tag, df)
+
+        try:
             crawling_log = CrawlingLog(
                 crawling_id=crawling_id,
                 crawling_type=log.get("crawling_type"),
@@ -115,8 +113,16 @@ class Secretary:
             )
             self.db.add(crawling_log)
             self.db.flush()
-            self.db.refresh(crawling_log)
 
+        except IntegrityError:
+            self.db.rollback()
+            return
+        except SQLAlchemyError as e:
+            self.db.rollback()
+            self.logger.log("ERROR", f"{type(e).__name__} 발생 → {e}")
+            raise
+
+        try:
             if "fail_log" in result:
                 self.db.add(
                     FailLog(
@@ -132,15 +138,7 @@ class Secretary:
 
         except SQLAlchemyError as e:
             self.db.rollback()
-            symbol = None
-            if (
-                log.get("crawling_type") == "financials"
-                and isinstance(df, list)
-                and len(df) > 0
-                and "Symbol" in df[0]
-            ):
-                symbol = df[0]["Symbol"]  # 첫 번째 Symbol 사용
-            self.logger.log_sqlalchemy_error(e, symbol)
+            self.logger.log("ERROR", f"{type(e).__name__} 발생 → {e}")
             raise
 
         except Exception as e:
