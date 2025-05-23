@@ -156,30 +156,3 @@ class YF_Quarterly(YFinanceStockCrawler):
         except Exception as e:
             self.logger.log("WARN", f"{tkr.ticker} - shares 조회 실패: {e}")
         return None
-
-    def save_to_db(self, ticker: str, data: dict) -> None:
-        company = self._company_map.get(ticker)
-        if not company:
-            self.logger.log("WARN", f"{ticker}에 대한 company 정보 없음")
-            return
-
-        # 필수 데이터 누락 검사
-        if data.get("shares") is None:
-            self.logger.log("WARN", f"{ticker} → 발행 주식수 누락")
-            return
-
-        company_id = company["company_id"]
-
-        try:
-            with get_session() as session:
-                record = Stock_Quarterly(
-                    company_id=company_id,
-                    shares=data["shares"],
-                    eps=data["eps"],
-                    per=data["per"],
-                    dividend_yield=data["dividend_yield"],
-                )
-                session.add(record)
-                session.commit()
-        except Exception as e:
-            self.logger.log("ERROR", f"{ticker} DB 저장 실패: {e}")
