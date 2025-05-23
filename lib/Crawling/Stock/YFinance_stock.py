@@ -51,7 +51,7 @@ class YFinanceStockCrawler(CrawlerInterface):
         super().__init__(name)
         self.tag = "stock"
         self.batch_size = 30
-        self.max_workers = 10
+        self.max_workers = 5
         self._company_map = get_company_map_from_db(
             Config.get("symbol_size.total", 6000)
         )

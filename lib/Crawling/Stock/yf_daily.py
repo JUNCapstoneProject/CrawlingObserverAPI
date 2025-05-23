@@ -39,8 +39,7 @@ class YF_Daily(YFinanceStockCrawler):
             self.logger.log("ERROR", f"전 거래일 계산 실패: {e}")
             return None
 
-    def check_missing(self) -> bool:
-        prev_day = self.get_previous_trading_day()
+    def check_missing(self, prev_day) -> bool:
         if not prev_day:
             self.logger.log("DEBUG", "전 거래일 판단 불가 → 전체 수집")
             self._missing = list(self._company_map.keys())
@@ -68,93 +67,76 @@ class YF_Daily(YFinanceStockCrawler):
             return True
 
     def crawl(self):
-        if not self.check_missing():
+        prev_day = self.get_previous_trading_day()
+
+        if not self.check_missing(prev_day):
             self.logger.log("DEBUG", "일간 데이터 수집 완료")
             return
 
-        prev_day = self.get_previous_trading_day()
         if not prev_day:
             self.logger.log("ERROR", "기준 거래일 없음 - 수집 중단")
             return
 
         self.logger.log("DEBUG", f"일간 데이터 수집 시작 - {len(self._missing)} 종목")
 
-        success_count = 0
-        total = len(self._missing)
-
-        def crawl_one(ticker: str) -> bool:
-            try:
-                data = self.fetch_daily_data(ticker, prev_day)
-                if not data:
-                    self.logger.log("ERROR", f"{ticker} 데이터 없음")
-                    return False
-                self.save_to_db(ticker, data, prev_day)
-                return True
-            except Exception as e:
-                self.logger.log("ERROR", f"{ticker} 저장 실패: {e}")
-                return False
-
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {executor.submit(crawl_one, t): t for t in self._missing}
-            for future in as_completed(futures):
-                if future.result():
-                    success_count += 1
-
-        self.logger.log(
-            "DEBUG", f"일간 데이터 수집 완료 - {success_count}/{total} 종목"
-        )
-
-    def fetch_daily_data(self, ticker: str, target_date: str):
+        # ✅ yf.download 사용
         try:
-            df = yf.Ticker(ticker).history(period="7d", interval="1d", auto_adjust=True)
-            if df.empty or target_date not in df.index.strftime("%Y-%m-%d"):
-                self.logger.log("WARN", f"{ticker}의 {target_date} 데이터 없음 → 스킵")
-                return None
-
-            adj_close = df[df.index.strftime("%Y-%m-%d") == target_date]["Close"].iloc[
-                0
-            ]
-            shares = self._shares_map.get(ticker.upper())
-
-            if shares is None or adj_close is None:
-                self.logger.log("WARN", f"{ticker} shares 또는 adj_close 없음 → 스킵")
-                return None
-
-            market_cap = round(adj_close * shares)
-
-            return {
-                "adj_close": float(adj_close),
-                "market_cap": int(market_cap),
-            }
-
+            df = yf.download(
+                tickers=self._missing,
+                period="7d",
+                interval="1d",
+                auto_adjust=True,
+                group_by="ticker",
+                threads=True,
+                progress=False,
+            )
         except Exception as e:
-            self.logger.log("ERROR", f"{ticker} 일간 데이터 수집 실패: {e}")
-            return None
-
-    def save_to_db(self, ticker: str, data: dict, posted_at: str) -> None:
-        company = self._company_map.get(ticker)
-        if not company:
-            self.logger.log("WARN", f"{ticker}에 대한 company 정보 없음 - 저장 스킵")
+            self.logger.log("ERROR", f"yf.download 실패: {e}")
             return
 
-        company_id = company["company_id"]
+        records = []
 
-        # 필수 필드 검증
-        required_keys = ["adj_close", "market_cap"]
-        for key in required_keys:
-            if data.get(key) is None:
-                self.logger.log("WARN", f"{ticker} → '{key}' 값 없음 - 저장 스킵")
-                return
+        for ticker in self._missing:
+            try:
+                if ticker not in df.columns.levels[0]:
+                    self.logger.log("WARN", f"{ticker} 데이터 없음 → 스킵")
+                    continue
+
+                df_tkr = df[ticker]
+                row = df_tkr.loc[df_tkr.index.strftime("%Y-%m-%d") == prev_day]
+                if row.empty:
+                    self.logger.log("WARN", f"{ticker}의 {prev_day} 데이터 없음 → 스킵")
+                    continue
+
+                adj_close = row["Close"].iloc[0]
+                shares = self._shares_map.get(ticker.upper())
+                if shares is None or not shares or adj_close is None:
+                    self.logger.log(
+                        "WARN", f"{ticker} shares 또는 adj_close 없음 → 스킵"
+                    )
+                    continue
+
+                market_cap = round(adj_close * shares)
+                company = self._company_map.get(ticker)
+                if not company:
+                    self.logger.log("WARN", f"{ticker} 회사 정보 없음 - 스킵")
+                    continue
+
+                record = Stock_Daily(
+                    company_id=company["company_id"],
+                    adj_close=float(adj_close),
+                    market_cap=int(market_cap),
+                    posted_at=prev_day,
+                )
+                records.append(record)
+
+            except Exception as e:
+                self.logger.log("ERROR", f"{ticker} 처리 실패: {e}")
 
         try:
             with get_session() as session:
-                record = Stock_Daily(
-                    company_id=company_id,
-                    adj_close=data["adj_close"],
-                    market_cap=data["market_cap"],
-                    posted_at=posted_at,
-                )
-                session.add(record)
+                session.bulk_save_objects(records)
                 session.commit()
+            self.logger.log("DEBUG", f"일간 데이터 벌크 저장 완료 - {len(records)} 건")
         except Exception as e:
-            self.logger.log("ERROR", f"{ticker} 저장 실패: {e}")
+            self.logger.log("ERROR", f"벌크 저장 실패: {e}")
