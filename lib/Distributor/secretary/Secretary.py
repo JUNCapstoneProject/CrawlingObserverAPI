@@ -18,10 +18,10 @@ from lib.Distributor.secretary.handlers import (
 )
 
 KST = timezone(timedelta(hours=9))
-now_kst = datetime.now(KST)
 
 
 class Secretary:
+
     def __init__(self):
         self.db = SessionLocal()
         self.handlers = {}
@@ -109,7 +109,7 @@ class Secretary:
                 crawling_type=log.get("crawling_type"),
                 status_code=log.get("status_code"),
                 target_url=log.get("target_url"),
-                try_time=now_kst,
+                try_time=datetime.now(KST),
             )
             self.db.add(crawling_log)
             self.db.flush()
