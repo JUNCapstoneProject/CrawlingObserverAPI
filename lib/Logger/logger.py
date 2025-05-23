@@ -21,7 +21,7 @@ class Logger:
 
     # 클래스 변수 초기화
     use_color = Config.get("color_log", True)
-    base_log_dir = os.path.join(os.path.dirname(__file__), "logs")
+    base_log_dir = os.path.join("logs")
     os.makedirs(base_log_dir, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
