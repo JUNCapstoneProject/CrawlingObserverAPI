@@ -113,7 +113,6 @@ class YF_Quarterly(YFinanceStockCrawler):
 
             shares = self._get_shares_outstanding(tkr)
             if not shares:
-                self.logger.log("WARN", f"{ticker} shares 수집 실패")
                 return None
 
             info = tkr.info
@@ -153,6 +152,8 @@ class YF_Quarterly(YFinanceStockCrawler):
                     shares = tkr.info.get("sharesOutstanding")
             if shares:
                 return int(shares)
+            else:
+                self.logger.log("WARN", f"{tkr.ticker} - shares 조회 실패")
         except Exception as e:
             self.logger.log("WARN", f"{tkr.ticker} - shares 조회 실패: {e}")
         return None
