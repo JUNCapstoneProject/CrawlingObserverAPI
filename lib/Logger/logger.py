@@ -39,6 +39,7 @@ class Logger:
 
         self.log_file = os.path.join(self.indiv_log_dir, f"log_{Logger.timestamp}.log")
         self.error_count = 0
+        self.is_test = Config.get("is_test.toggle", False)  # 테스트 모드 여부
 
     def log(self, level: str, message: str):
         """로그 메시지 출력 및 저장"""
@@ -68,7 +69,7 @@ class Logger:
 
     def _handle_debug_log(self, formatted: str, color: str, reset: str):
         """디버그 로그 처리"""
-        if Config.get("is_test", False):
+        if self.is_test:
             print(f"{color}{formatted}{reset}")
 
     def _handle_general_log(self, formatted: str, color: str, reset: str):
