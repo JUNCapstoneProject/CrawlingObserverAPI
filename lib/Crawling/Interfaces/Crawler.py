@@ -31,6 +31,8 @@ class CrawlerInterface(ABC):
 
     def run(self):
         """크롤러 실행 루프"""
+        while True:
+            pass
         if not self.scheduler.is_test:
             self._execute_crawl()  # 반드시 1회 실행
 
