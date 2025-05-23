@@ -1,4 +1,4 @@
-import json, orjson
+import orjson
 import hashlib
 import pandas as pd
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
