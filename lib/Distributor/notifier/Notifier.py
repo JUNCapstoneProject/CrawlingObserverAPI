@@ -12,7 +12,7 @@ class NotifierBase:
     def __init__(self, name="NotifierBase"):
         self.client = SocketClient()
         self.logger = Logger(name)
-        self.interval_sec = Config.get("notifier_interval", 600)
+        self.interval_sec = Config.get("notifier_interval", 120)
         self.socket_condition = Config.get("socket_condition", True)
 
     def run_all(self):
