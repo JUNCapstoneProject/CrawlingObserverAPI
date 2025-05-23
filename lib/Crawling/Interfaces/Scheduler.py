@@ -3,6 +3,7 @@ import datetime
 from zoneinfo import ZoneInfo
 from lib.Crawling.config.LoadConfig import load_config
 from lib.Config.config import Config
+from lib.Logger.logger import Logger
 
 
 class Scheduler:
@@ -25,6 +26,7 @@ class Scheduler:
         self.eastern = ZoneInfo("America/New_York")  # 미국 동부 시간대
         self.is_test = Config.get("is_test.toggle", False)  # 테스트 모드 여부
         self.test_interval = Config.get("is_test.interval", 10)  # 테스트 모드 간격 (분)
+        self.logger = Logger(self.__class__.__name__)
 
     def _now_et(self) -> datetime.datetime:
         """현재 시간을 동부 시간대로 반환"""
@@ -98,12 +100,8 @@ class Scheduler:
             ):  # 현재 시간이 스케줄 범위 내인지 확인
                 return False
 
-            elapsed_min = now.hour * 60 + now.minute
-            start_min = start_hour * 60
-            if (elapsed_min - start_min) % interval == 0:  # 간격에 따라 실행 여부 결정
-                self._set_ttl(interval)
-                return True
-            return False
+            self._set_ttl(interval)
+            return True
 
         # 월간 스케줄 처리
         elif self.schedule_type == "monthly":
