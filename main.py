@@ -9,28 +9,28 @@ from lib.Distributor.notifier import run as run_notifier  # notifier
 
 
 def run():
-    Config.init()
+    try:
+        Config.init()
 
-    threads = []
+        threads = []
 
-    if Config.get("run_condition.crawler", True):
-        threads.append(Thread(target=run_crawling, name="CrawlerThread"))
+        if Config.get("run_condition.crawler", True):
+            threads.append(Thread(target=run_crawling, name="CrawlerThread"))
 
-    if Config.get("run_condition.notifier", True):
-        threads.append(Thread(target=run_notifier, name="NotifierThread"))
+        if Config.get("run_condition.notifier", True):
+            threads.append(Thread(target=run_notifier, name="NotifierThread"))
 
-    for t in threads:
-        t.start()
+        for t in threads:
+            t.start()
 
-    for t in threads:
-        t.join()
+        for t in threads:
+            t.join()
+    except Exception as e:
+        log_traceback(e)
 
 
 def main():
-    try:
-        run()
-    except Exception as e:
-        log_traceback(e)
+    run()
 
 
 if __name__ == "__main__":
