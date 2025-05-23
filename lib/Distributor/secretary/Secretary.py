@@ -119,7 +119,6 @@ class Secretary:
             return
         except SQLAlchemyError as e:
             self.db.rollback()
-            self.logger.log("ERROR", f"{type(e).__name__} 발생 → {e}")
             raise
 
         try:
@@ -138,10 +137,8 @@ class Secretary:
 
         except SQLAlchemyError as e:
             self.db.rollback()
-            self.logger.log("ERROR", f"{type(e).__name__} 발생 → {e}")
             raise
 
         except Exception as e:
             self.db.rollback()
-            self.logger.log("ERROR", f"{type(e).__name__} 발생 → {e}")
             raise
