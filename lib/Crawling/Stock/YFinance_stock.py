@@ -165,9 +165,7 @@ class YFinanceStockCrawler(CrawlerInterface):
                     {
                         "tag": self.tag,
                         "log": {"crawling_type": self.tag, "status_code": 500},
-                        "fail_log": {
-                            "err_message": f"Unknown error while processing {ticker}: {str(e)}"
-                        },
+                        "fail_log": {"err_message": f"{ticker}: {str(e)}"},
                     }
                 )
 
