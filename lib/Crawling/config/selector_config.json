@@ -49,7 +49,7 @@
       "main": {
         "href": ["a.title"],
         "title": ["a.title"],
-        "author": ["span.articleDetails a", "span.articleDetails span"]
+        "author": ["span.articleDetails span", "span.articleDetails a"]
       },
       "contents": {
         "tag": ["div[data-test='related-instruments-section'] a span"],
