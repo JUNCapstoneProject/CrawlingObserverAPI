@@ -16,28 +16,31 @@ from lib.Distributor.secretary.title_translator import translate_title
 
 def store_news(db, crawling_id, data):
     for row in data:
+        title = row.get("title")
+        if not title:
+            continue
+
+        # 이미 동일한 title이 존재하면 skip
+        exists = db.execute(select(News).where(News.title == title)).first()
+        if exists:
+            continue
+
         tags = row.get("tag", "")
         if not tags:
             continue
 
-        # 쉼표로 분리된 태그 중 company에 속하는 태그만 추출
         valid_tags = []
         for tag in [t.strip() for t in tags.split(",") if t.strip()]:
-            exists = db.execute(select(Company).where(Company.ticker == tag)).first()
-            if exists:
+            if db.execute(select(Company).where(Company.ticker == tag)).first():
                 valid_tags.append(tag)
 
-        # company에 속하는 태그가 하나도 없으면 뉴스 저장하지 않음
         if not valid_tags:
             continue
 
-        title = row.get("title")
         transed_title = translate_title(title)
-
-        # 뉴스 한 건 저장
         news = News(
             crawling_id=crawling_id,
-            title=row.get("title"),
+            title=title,
             transed_title=transed_title,
             author=row.get("author"),
             organization=row.get("organization"),
@@ -47,32 +50,37 @@ def store_news(db, crawling_id, data):
         )
         db.add(news)
 
-        # 유효한 태그만 저장
         for tag in valid_tags:
             db.add(NewsTag(crawling_id=crawling_id, tag=tag))
 
 
 def store_reports(db, crawling_id, data):
     for row in data:
+        title = row.get("title")
+        if not title:
+            continue
+
+        # 이미 동일한 title이 존재하면 skip
+        exists = db.execute(select(Report).where(Report.title == title)).first()
+        if exists:
+            continue
+
         tags = row.get("tag", "")
         if not tags:
             continue
 
         valid_tags = []
         for tag in [t.strip() for t in tags.split(",") if t.strip()]:
-            exists = db.execute(select(Company).where(Company.ticker == tag)).first()
-            if exists:
+            if db.execute(select(Company).where(Company.ticker == tag)).first():
                 valid_tags.append(tag)
 
         if not valid_tags:
             continue
 
-        title = row.get("title")
         transed_title = translate_title(title)
-
         report = Report(
             crawling_id=crawling_id,
-            title=row.get("title"),
+            title=title,
             transed_title=transed_title,
             author=row.get("author"),
             hits=row.get("hits"),
@@ -81,7 +89,6 @@ def store_reports(db, crawling_id, data):
         )
         db.add(report)
 
-        # 유효한 태그만 저장
         for tag in valid_tags:
             db.add(ReportTag(crawling_id=crawling_id, tag=tag))
 
