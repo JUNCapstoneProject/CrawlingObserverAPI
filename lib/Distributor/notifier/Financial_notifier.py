@@ -26,18 +26,45 @@ class FinancialNotifier(NotifierBase):
             try:
                 if self.socket_condition:
                     result = self.client.request_tcp(item)
-                    analysis = result.get("message")
+
+                    status_code = result.get("status_code")
+                    message = result.get("message")  # 에러 원인 또는 일반 메시지
+                    analysis = result.get("item", {}).get("result")
+
+                    if status_code == 200:
+                        if analysis:
+                            self._update_analysis(
+                                row["crawling_id"], analysis, ["financials"]
+                            )
+                        else:
+                            self.logger.log(
+                                "WARN",
+                                f"[Finance] 분석 결과 없음 → {row['crawling_id']}",
+                            )
+                    elif status_code == 400:
+                        self.logger.log(
+                            "ERROR",
+                            f"[Finance] 데이터 입력 오류 (400) → {row['crawling_id']}: {message}",
+                        )
+                    elif status_code == 500:
+                        self.logger.log(
+                            "ERROR",
+                            f"[Finance] 시스템 오류 (500) → {row['crawling_id']}: {message}",
+                        )
+                    else:
+                        self.logger.log(
+                            "ERROR",
+                            f"[Finance] 알 수 없는 상태 코드({status_code}) → {row['crawling_id']}: {message}",
+                        )
+
                 else:
                     analysis = "notifier 테스트"
-
-                if analysis:
                     self._update_analysis(row["crawling_id"], analysis, ["financials"])
-                else:
-                    self.logger.log(
-                        "WARN", f"[Finance] no result for {row['crawling_id']}"
-                    )
+
             except Exception as e:
-                self.logger.log("ERROR", f"[Finance] {row['crawling_id']}: {e}")
+                self.logger.log(
+                    "ERROR", f"[Finance] 예외 발생 → {row['crawling_id']}: {e}"
+                )
 
         self.logger.log_summary()
 

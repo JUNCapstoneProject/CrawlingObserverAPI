@@ -28,19 +28,45 @@ class ArticleNotifier(NotifierBase):
             try:
                 if self.socket_condition:
                     result = self.client.request_tcp(item)
-                    analysis = result.get("message")
+
+                    status_code = result.get("status_code")
+                    message = result.get("message")  # 오류 메시지 or 일반 메시지
+                    analysis = result.get("item", {}).get("result")  # 실제 분석 결과
+
+                    if status_code == 200:
+                        if analysis:
+                            self._update_analysis(
+                                row["tag_id"], analysis, row["source"]
+                            )
+                        else:
+                            self.logger.log(
+                                "WARN",
+                                f"[Article] 분석 결과 없음 → {row['crawling_id']}",
+                            )
+                    elif status_code == 400:
+                        self.logger.log(
+                            "ERROR",
+                            f"[Article] 데이터 입력 오류 (400) → {message}: {row['tag']}, {row['crawling_id']}",
+                        )
+                    elif status_code == 500:
+                        self.logger.log(
+                            "ERROR",
+                            f"[Article] 시스템 오류 (500) → {message}: {row['tag']}, {row['crawling_id']}",
+                        )
+                    else:
+                        self.logger.log(
+                            "ERROR",
+                            f"[Article] 알 수 없는 상태 코드({status_code}) → {message}: {row['tag']}, {row['crawling_id']}",
+                        )
+
                 else:
                     analysis = "notifier 테스트"
-
-                if analysis:
                     self._update_analysis(row["tag_id"], analysis, row["source"])
-                else:
-                    self.logger.log(
-                        "WARN", f"[Article] no result for {row['crawling_id']}"
-                    )
+
             except Exception as e:
                 self.logger.log(
-                    "ERROR", f"[Article] {e}: {row['tag']}, {row['crawling_id']}"
+                    "ERROR",
+                    f"[Article] 예외 발생 → {e}: {row['tag']}, {row['crawling_id']}",
                 )
 
         self.logger.log_summary()
@@ -55,25 +81,22 @@ class ArticleNotifier(NotifierBase):
                 )
                 return None
 
-            title = row.get("title") or ""
             content = row.get("content") or ""
 
-            if not title.strip() and not content.strip():
+            if not content.strip():
                 self.logger.log(
                     "WARN",
-                    f"[BuildItem] title+content empty for {row.get('crawling_id')}",
+                    f"[BuildItem] content empty for {row.get('crawling_id')}",
                 )
                 return None
 
-            item["data"]["news_data"] = {
-                "title": title,
-                "content": content,
-            }
+            item["data"]["news_data"] = content
             item["data"]["stock_history"] = self._get_stock_history(tag)
             item["data"]["market_history"] = self._get_market_history(tag)
             item["data"]["income_statement"] = self._get_income_statement(tag)
             item["data"]["info"] = self._get_info(tag)
             return item
+
         except Exception as e:
             self.logger.log("ERROR", f"[BuildItem] {row.get('crawling_id')}: {e}")
             return None

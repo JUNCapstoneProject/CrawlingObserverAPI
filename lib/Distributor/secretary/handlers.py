@@ -11,6 +11,7 @@ from lib.Distributor.secretary.models.financials import (
     BalanceSheet,
     CashFlow,
 )
+from lib.Distributor.secretary.title_translator import translate_title
 
 
 def store_news(db, crawling_id, data):
@@ -30,10 +31,14 @@ def store_news(db, crawling_id, data):
         if not valid_tags:
             continue
 
+        title = row.get("title")
+        transed_title = translate_title(title)
+
         # 뉴스 한 건 저장
         news = News(
             crawling_id=crawling_id,
             title=row.get("title"),
+            transed_title=transed_title,
             author=row.get("author"),
             organization=row.get("organization"),
             posted_at=row.get("posted_at"),
@@ -59,9 +64,16 @@ def store_reports(db, crawling_id, data):
             if exists:
                 valid_tags.append(tag)
 
+        if not valid_tags:
+            continue
+
+        title = row.get("title")
+        transed_title = translate_title(title)
+
         report = Report(
             crawling_id=crawling_id,
             title=row.get("title"),
+            transed_title=transed_title,
             author=row.get("author"),
             hits=row.get("hits"),
             posted_at=row.get("posted_at"),
