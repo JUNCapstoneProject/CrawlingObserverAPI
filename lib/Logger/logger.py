@@ -19,17 +19,12 @@ COLOR_MAP = {
 class Logger:
     """로그 관리 클래스"""
 
-    # 클래스 변수 초기화
     use_color = Config.get("color_log", True)
     base_log_dir = os.path.join("logs")
     os.makedirs(base_log_dir, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    common_log_file = os.path.join(base_log_dir, f"log_common_{timestamp}.log")
-
     error_log_dir = os.path.join(base_log_dir, "errors")
     os.makedirs(error_log_dir, exist_ok=True)
-    error_log_file = os.path.join(error_log_dir, f"log_error_{timestamp}.log")
 
     def __init__(self, name: str):
         """개별 로거 초기화"""
@@ -37,9 +32,23 @@ class Logger:
         self.indiv_log_dir = os.path.join(Logger.base_log_dir, name)
         os.makedirs(self.indiv_log_dir, exist_ok=True)
 
-        self.log_file = os.path.join(self.indiv_log_dir, f"log_{Logger.timestamp}.log")
         self.error_count = 0
-        self.is_test = Config.get("is_test.toggle", False)  # 테스트 모드 여부
+        self.is_test = Config.get("is_test.toggle", False)
+
+    def _get_log_file_path(self):
+        """현재 시간 기준 파일 경로 생성 (시간 단위 분리)"""
+        rotation_hours = Config.get("log_rotation", 4)
+        now = datetime.now()
+        slot = now.hour // rotation_hours * rotation_hours
+        time_str = now.strftime("%Y%m%d") + f"_{slot:02d}H"
+
+        log_file = os.path.join(self.indiv_log_dir, f"log_{time_str}.log")
+        common_log_file = os.path.join(
+            Logger.base_log_dir, f"log_common_{time_str}.log"
+        )
+        error_log_file = os.path.join(Logger.error_log_dir, f"log_error_{time_str}.log")
+
+        return log_file, common_log_file, error_log_file
 
     def log(self, level: str, message: str):
         """로그 메시지 출력 및 저장"""
@@ -48,7 +57,6 @@ class Logger:
         timestamp = datetime.now().strftime("%m-%d %H:%M:%S")
         formatted = f"[{timestamp}] [{level:<6}] {self.name:<24} - {message}"
 
-        # 로그 처리
         if level.upper() == "ERROR":
             self._handle_error_log(formatted, color, reset)
         elif level.upper() == "DEBUG":
@@ -56,13 +64,13 @@ class Logger:
         else:
             self._handle_general_log(formatted, color, reset)
 
-        # 모든 로그를 파일에 기록
         self._write_to_file(formatted)
 
     def _handle_error_log(self, formatted: str, color: str, reset: str):
         """에러 로그 처리"""
         self.error_count += 1
-        with open(Logger.error_log_file, "a", encoding="utf-8") as ef:
+        _, _, error_log_file = self._get_log_file_path()
+        with open(error_log_file, "a", encoding="utf-8") as ef:
             ef.write(formatted + "\n")
         if Config.get("print_error_log", True):
             print(f"{color}{formatted}{reset}")
@@ -77,14 +85,15 @@ class Logger:
         print(f"{color}{formatted}{reset}")
 
     def _write_to_file(self, formatted: str):
-        """로그를 파일에 기록"""
-        with open(self.log_file, "a", encoding="utf-8") as f:
+        """로그 파일 기록 (개별 + 공통)"""
+        log_file, common_log_file, _ = self._get_log_file_path()
+        with open(log_file, "a", encoding="utf-8") as f:
             f.write(formatted + "\n")
-        with open(Logger.common_log_file, "a", encoding="utf-8") as f:
+        with open(common_log_file, "a", encoding="utf-8") as f:
             f.write(formatted + "\n")
 
     def log_summary(self):
-        """로그 요약 출력"""
+        """에러 카운트 포함 요약 메시지 출력"""
         timestamp = datetime.now().strftime("%m-%d %H:%M:%S")
         level = "SUMMARY"
         message = (
