@@ -29,6 +29,9 @@ class FinancialNotifier(NotifierBase):
                 if self.socket_condition:
                     result = self.client.request_tcp(item)
 
+                    self.logger.log("DEBUG", f"type(result): {type(result)}")
+                    self.logger.log("DEBUG", f"result content: {result}")
+
                     status_code = result.get("status_code")
                     message = result.get("message")  # 에러 원인 또는 일반 메시지
                     analysis = result.get("item", {}).get("result")
