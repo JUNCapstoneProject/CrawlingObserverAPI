@@ -170,7 +170,9 @@ class ArticleNotifier(NotifierBase):
             info = yf.Ticker(tag).info
             exchange = info.get("exchange", "").upper()
             index = self._map_exchange_to_index(exchange)
-            df = yf.Ticker(index).history(period="7d", interval="1d")
+
+            ticker_obj = self.yf_with_backoff(index, "MarketHistory")
+            df = ticker_obj.history(period="7d", interval="1d")
 
             result = {
                 k: []
@@ -180,14 +182,13 @@ class ArticleNotifier(NotifierBase):
                 self.logger.log("DEBUG", f"[MarketHistory] {tag} → {index}: empty")
                 return result
 
-            # ✅ 가장 최근 1일치만 사용
             last_row = df.tail(1).iloc[0]
             result["Date"].append(str(df.tail(1).index[0].date()))
             for k in result:
                 if k != "Date":
                     result[k].append(float(last_row.get(k, 0)))
-
             return result
+
         except Exception as e:
             self.logger.log("ERROR", f"[MarketHistory] {tag}: {e}")
             return {
@@ -249,9 +250,41 @@ class ArticleNotifier(NotifierBase):
             self.logger.log("ERROR", f"[IncomeStatement] {tag}: {e}")
             return {}
 
+    def yf_with_backoff(
+        self, ticker_str: str, purpose: str, max_retries: int = 4
+    ) -> yf.Ticker:
+        """
+        yfinance Ticker 객체 반환. 401 Unauthorized 발생 시 백오프 재시도
+        :param self: 로거가 포함된 클래스 인스턴스
+        :param ticker_str: 티커 문자열 (ex: "AAPL", "^GSPC")
+        :param purpose: 로그용 태그 (ex: "MarketHistory", "PriceToBook")
+        :param max_retries: 최대 재시도 횟수
+        :return: yf.Ticker 객체
+        """
+        import time
+        import yfinance as yf
+
+        for retry in range(max_retries + 1):
+            try:
+                ticker = yf.Ticker(ticker_str)
+                _ = ticker.info  # 이 시점에서 요청 발생
+                return ticker
+            except Exception as e:
+                if "401" in str(e):
+                    wait = 5 + retry * 5
+                    self.logger.log(
+                        "ERROR",
+                        f"[{purpose}] 401 Unauthorized for {ticker_str} → {wait}s 대기 (재시도 {retry})",
+                    )
+                    time.sleep(wait)
+                else:
+                    raise
+        raise RuntimeError(f"[{purpose}] {ticker_str} 요청 실패 (최대 재시도 초과)")
+
     def _get_info(self, tag: str) -> dict:
         try:
-            ptb = yf.Ticker(tag).info.get("priceToBook")
+            ticker_obj = self.yf_with_backoff(tag, "PriceToBook")
+            ptb = ticker_obj.info.get("priceToBook")
             if ptb is None:
                 self.logger.log("DEBUG", f"[PriceToBook] no priceToBook for {tag}")
             return {"priceToBook": [ptb] if ptb is not None else []}
