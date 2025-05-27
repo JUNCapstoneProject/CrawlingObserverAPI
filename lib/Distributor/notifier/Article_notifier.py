@@ -22,7 +22,7 @@ class ArticleNotifier(NotifierBase):
         for row in rows:
             item = self._build_item(row)
             if not item:
-                self.logger.log("WARN", f"[Article] skipping: {row.get('crawling_id')}")
+                self.logger.log("WARN", f"[Article] no item in: {row.get('tag')}")
                 continue
 
             try:

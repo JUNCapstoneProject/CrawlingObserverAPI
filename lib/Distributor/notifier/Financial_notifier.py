@@ -20,7 +20,7 @@ class FinancialNotifier(NotifierBase):
         for row in rows:
             item = self._build_item(row)
             if not item:
-                self.logger.log("WARN", f"[Finance] skipping: {row.get('crawling_id')}")
+                self.logger.log("WARN", f"[Finance] no item in: {row.get('company')}")
                 continue
 
             try:
