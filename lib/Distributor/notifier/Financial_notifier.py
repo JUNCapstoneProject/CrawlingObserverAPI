@@ -12,18 +12,16 @@ class FinancialNotifier(NotifierBase):
         super().__init__("FinancialNotifier")
 
     def run(self):
-        rows = self._fetch_unanalyzed_rows("notifier_financial_vw")
+        rows = self._fetch_unanalyzed_rows("notifier_articles_vw")
         if not rows:
-            self.logger.log("WAIT", "[Finance] 처리할 재무 데이터 없음")
+            self.logger.log("WAIT", "[Article] 처리할 뉴스 없음")
             return
 
         for row in rows:
             try:
                 item = self._build_item(row)
                 if not item:
-                    self.logger.log(
-                        "WARN", f"[Finance] no item in: {row.get('company')}"
-                    )
+                    self.logger.log("WARN", f"[Article] no item in: {row.get('tag')}")
                     continue
 
                 if self.socket_condition:
@@ -33,42 +31,41 @@ class FinancialNotifier(NotifierBase):
                     self.logger.log("DEBUG", f"result content: {result}")
 
                     status_code = result.get("status_code")
-                    message = result.get("message")  # 에러 원인 또는 일반 메시지
-                    analysis = result.get("item", {}).get("result")
+                    message = result.get("message")
 
-                    if status_code == 200:
-                        if analysis:
-                            self._update_analysis(
-                                row["crawling_id"], analysis, ["financials"]
-                            )
+                    if status_code != 200:
+                        log_level = "ERROR"
+                        if status_code == 400:
+                            msg = f"[Article] 데이터 입력 오류 (400)"
+                        elif status_code == 500:
+                            msg = f"[Article] 시스템 오류 (500)"
                         else:
-                            self.logger.log(
-                                "WARN",
-                                f"[Finance] 분석 결과 없음 → {row['crawling_id']}",
-                            )
-                    elif status_code == 400:
+                            msg = f"[Article] 알 수 없는 상태 코드({status_code})"
+
                         self.logger.log(
-                            "ERROR",
-                            f"[Finance] 데이터 입력 오류 (400) → {row['crawling_id']}: {message}",
+                            log_level,
+                            f"{msg} → {message}: {row['company']}",
                         )
-                    elif status_code == 500:
-                        self.logger.log(
-                            "ERROR",
-                            f"[Finance] 시스템 오류 (500) → {row['crawling_id']}: {message}",
-                        )
+                        continue  # 에러일 경우 이후 로직 실행하지 않음
+
+                    # 성공(200)일 때만 분석 결과 확인
+                    analysis = result.get("item", {}).get("result")
+                    if analysis:
+                        self._update_analysis(row["tag_id"], analysis, row["source"])
                     else:
                         self.logger.log(
-                            "ERROR",
-                            f"[Finance] 알 수 없는 상태 코드({status_code}) → {row['crawling_id']}: {message}",
+                            "WARN",
+                            f"[Article] 분석 결과 없음 → {row['crawling_id']}",
                         )
 
                 else:
                     analysis = "notifier 테스트"
-                    # self._update_analysis(row["crawling_id"], analysis, ["financials"])
+                    # self._update_analysis(row["tag_id"], analysis, row["source"])
 
             except Exception as e:
                 self.logger.log(
-                    "ERROR", f"[Finance] 예외 발생 → {row.get('crawling_id')}: {e}"
+                    "ERROR",
+                    f"[Article] 예외 발생 → {e}: {row.get('tag')}, {row.get('crawling_id')}",
                 )
 
         self.logger.log_summary()
