@@ -132,10 +132,6 @@ class FinancialNotifier(NotifierBase):
                 or all_empty(item["data"]["cash_flow"])
                 or not item["data"]["chart"]["timestamp"]  # 차트는 timestamp로 판단
             ):
-                self.logger.log(
-                    "WARN",
-                    f"[BuildItem] one or more parts missing → id={row.get('crawling_id')}",
-                )
                 return None
 
             return item

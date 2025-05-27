@@ -101,10 +101,6 @@ class ArticleNotifier(NotifierBase):
                 or not any(income_statement.values())
                 or not any(info.values())
             ):
-                self.logger.log(
-                    "WARN",
-                    f"[BuildItem] one or more parts missing → {row.get('crawling_id')}",
-                )
                 return None
 
             item["data"]["news_data"] = content
