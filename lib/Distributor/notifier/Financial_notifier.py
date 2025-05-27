@@ -29,9 +29,6 @@ class FinancialNotifier(NotifierBase):
                 if self.socket_condition:
                     result = self.client.request_tcp(item)
 
-                    self.logger.log("DEBUG", f"type(result): {type(result)}")
-                    self.logger.log("DEBUG", f"result content: {result}")
-
                     status_code = result.get("status_code")
                     message = result.get("message")
 
@@ -45,7 +42,7 @@ class FinancialNotifier(NotifierBase):
 
                         self.logger.log(
                             "ERROR",
-                            f"{msg} → {message}: {row['tag']}",
+                            f"{msg} → {message}: {row['company']}",
                         )
                         continue  # 실패 시 analysis 건너뜀
 

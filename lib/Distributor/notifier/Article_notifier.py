@@ -29,9 +29,6 @@ class ArticleNotifier(NotifierBase):
                 if self.socket_condition:
                     result = self.client.request_tcp(item)
 
-                    self.logger.log("DEBUG", f"type(result): {type(result)}")
-                    self.logger.log("DEBUG", f"result content: {result}")
-
                     status_code = result.get("status_code")
                     message = result.get("message")
 
@@ -46,7 +43,7 @@ class ArticleNotifier(NotifierBase):
 
                         self.logger.log(
                             log_level,
-                            f"{msg} → {message}: {row['company']}",
+                            f"{msg} → {message}: {row['tag']}",
                         )
                         continue  # 에러일 경우 이후 로직 실행하지 않음
 
