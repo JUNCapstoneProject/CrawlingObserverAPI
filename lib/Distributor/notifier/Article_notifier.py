@@ -28,8 +28,10 @@ class ArticleNotifier(NotifierBase):
 
                 if self.socket_condition:
                     result = self.client.request_tcp(item)
+
                     self.logger.log("DEBUG", f"type(result): {type(result)}")
                     self.logger.log("DEBUG", f"result content: {result}")
+
                     status_code = result.get("status_code")
                     message = result.get("message")
                     analysis = result.get("item", {}).get("result")
