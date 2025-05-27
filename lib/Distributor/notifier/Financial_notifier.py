@@ -18,12 +18,14 @@ class FinancialNotifier(NotifierBase):
             return
 
         for row in rows:
-            item = self._build_item(row)
-            if not item:
-                self.logger.log("WARN", f"[Finance] no item in: {row.get('company')}")
-                continue
-
             try:
+                item = self._build_item(row)
+                if not item:
+                    self.logger.log(
+                        "WARN", f"[Finance] no item in: {row.get('company')}"
+                    )
+                    continue
+
                 if self.socket_condition:
                     result = self.client.request_tcp(item)
 
@@ -63,7 +65,7 @@ class FinancialNotifier(NotifierBase):
 
             except Exception as e:
                 self.logger.log(
-                    "ERROR", f"[Finance] 예외 발생 → {row['crawling_id']}: {e}"
+                    "ERROR", f"[Finance] 예외 발생 → {row.get('crawling_id')}: {e}"
                 )
 
         self.logger.log_summary()

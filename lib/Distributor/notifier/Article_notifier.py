@@ -20,18 +20,18 @@ class ArticleNotifier(NotifierBase):
             return
 
         for row in rows:
-            item = self._build_item(row)
-            if not item:
-                self.logger.log("WARN", f"[Article] no item in: {row.get('tag')}")
-                continue
-
             try:
+                item = self._build_item(row)
+                if not item:
+                    self.logger.log("WARN", f"[Article] no item in: {row.get('tag')}")
+                    continue
+
                 if self.socket_condition:
                     result = self.client.request_tcp(item)
 
                     status_code = result.get("status_code")
-                    message = result.get("message")  # 오류 메시지 or 일반 메시지
-                    analysis = result.get("item", {}).get("result")  # 실제 분석 결과
+                    message = result.get("message")
+                    analysis = result.get("item", {}).get("result")
 
                     if status_code == 200:
                         if analysis:
@@ -58,7 +58,6 @@ class ArticleNotifier(NotifierBase):
                             "ERROR",
                             f"[Article] 알 수 없는 상태 코드({status_code}) → {message}: {row['tag']}, {row['crawling_id']}",
                         )
-
                 else:
                     analysis = "notifier 테스트"
                     # self._update_analysis(row["tag_id"], analysis, row["source"])
@@ -66,7 +65,7 @@ class ArticleNotifier(NotifierBase):
             except Exception as e:
                 self.logger.log(
                     "ERROR",
-                    f"[Article] 예외 발생 → {e}: {row['tag']}, {row['crawling_id']}",
+                    f"[Article] 예외 발생 → {e}: {row.get('tag')}, {row.get('crawling_id')}",
                 )
 
         self.logger.log_summary()
