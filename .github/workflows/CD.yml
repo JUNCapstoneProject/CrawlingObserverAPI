@@ -1,0 +1,39 @@
+name: CrawlingObserverAPI_CD
+
+on:
+  workflow_run:
+    workflows: ["CrawlingObserverAPI_CI"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: "Checkout Github Repository"
+        uses: actions/checkout@v2
+
+      - name: "Login and Copy project via SSH on Remote Server"
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_ADDR }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PWD }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "./*"
+          target: "/home/stockmarketanalysis/dockers/CrawlingObserverAPI/service"
+
+      - name: "Deploy docker via SSH on Remote Server"
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_ADDR }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          password: ${{ secrets.SERVER_PWD }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            # Docker로 서비스 빌드 및 실행
+            cd ~/dockers/CrawlingObserverAPI/service
+            docker build -t docker:CrawlingObserverAPI_service .
+            docker stop CrawlingObserverAPI_service || true
+            docker rm CrawlingObserverAPI_service || true
+            docker run -d --name CrawlingObserverAPI_service docker:CrawlingObserverAPI_service
