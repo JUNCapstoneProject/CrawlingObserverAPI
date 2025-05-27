@@ -12,16 +12,18 @@ class FinancialNotifier(NotifierBase):
         super().__init__("FinancialNotifier")
 
     def run(self):
-        rows = self._fetch_unanalyzed_rows("notifier_articles_vw")
+        rows = self._fetch_unanalyzed_rows("notifier_financial_vw")
         if not rows:
-            self.logger.log("WAIT", "[Article] 처리할 뉴스 없음")
+            self.logger.log("WAIT", "[Finance] 처리할 재무 데이터 없음")
             return
 
         for row in rows:
             try:
                 item = self._build_item(row)
                 if not item:
-                    self.logger.log("WARN", f"[Article] no item in: {row.get('tag')}")
+                    self.logger.log(
+                        "DEBUG", f"[Finance] no item in: {row.get('company')}"
+                    )
                     continue
 
                 if self.socket_condition:
@@ -34,38 +36,38 @@ class FinancialNotifier(NotifierBase):
                     message = result.get("message")
 
                     if status_code != 200:
-                        log_level = "ERROR"
                         if status_code == 400:
-                            msg = f"[Article] 데이터 입력 오류 (400)"
+                            msg = "[Finance] 데이터 입력 오류 (400)"
                         elif status_code == 500:
-                            msg = f"[Article] 시스템 오류 (500)"
+                            msg = "[Finance] 시스템 오류 (500)"
                         else:
-                            msg = f"[Article] 알 수 없는 상태 코드({status_code})"
+                            msg = f"[Finance] 알 수 없는 상태 코드({status_code})"
 
                         self.logger.log(
-                            log_level,
-                            f"{msg} → {message}: {row['company']}",
+                            "ERROR",
+                            f"{msg} → {message}: {row['tag']}",
                         )
-                        continue  # 에러일 경우 이후 로직 실행하지 않음
+                        continue  # 실패 시 analysis 건너뜀
 
-                    # 성공(200)일 때만 분석 결과 확인
+                    # 200 성공 시만 분석 처리
                     analysis = result.get("item", {}).get("result")
                     if analysis:
-                        self._update_analysis(row["tag_id"], analysis, row["source"])
+                        self._update_analysis(
+                            row["crawling_id"], analysis, ["financials"]
+                        )
                     else:
                         self.logger.log(
                             "WARN",
-                            f"[Article] 분석 결과 없음 → {row['crawling_id']}",
+                            f"[Finance] 분석 결과 없음 → {row['crawling_id']}",
                         )
 
                 else:
                     analysis = "notifier 테스트"
-                    # self._update_analysis(row["tag_id"], analysis, row["source"])
+                    # self._update_analysis(row["crawling_id"], analysis, ["financials"])
 
             except Exception as e:
                 self.logger.log(
-                    "ERROR",
-                    f"[Article] 예외 발생 → {e}: {row.get('tag')}, {row.get('crawling_id')}",
+                    "ERROR", f"[Finance] 예외 발생 → {row.get('crawling_id')}: {e}"
                 )
 
         self.logger.log_summary()
