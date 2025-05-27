@@ -44,8 +44,8 @@ class Config:
         """
         cls._load()  # 변경 감지 후 필요 시 재로드
 
-        # if key == "symbol_size.total":
-        #     return 100
+        if key == "symbol_size.total":
+            return 500
 
         keys = key.split(".")
         value = cls._config
