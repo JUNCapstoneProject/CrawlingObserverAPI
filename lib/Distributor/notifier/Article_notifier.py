@@ -22,7 +22,7 @@ class ArticleNotifier(NotifierBase):
         for row in rows:
             item = self._build_item(row)
             if not item:
-                self.logger.log("WARN", f"[Article] skipping: {row.get('crawling_id')}")
+                self.logger.log("WARN", f"[Article] no item in: {row.get('tag')}")
                 continue
 
             try:
@@ -61,7 +61,7 @@ class ArticleNotifier(NotifierBase):
 
                 else:
                     analysis = "notifier 테스트"
-                    self._update_analysis(row["tag_id"], analysis, row["source"])
+                    # self._update_analysis(row["tag_id"], analysis, row["source"])
 
             except Exception as e:
                 self.logger.log(
@@ -82,7 +82,6 @@ class ArticleNotifier(NotifierBase):
                 return None
 
             content = row.get("content") or ""
-
             if not content.strip():
                 self.logger.log(
                     "WARN",
@@ -90,11 +89,30 @@ class ArticleNotifier(NotifierBase):
                 )
                 return None
 
+            stock_history = self._get_stock_history(tag)
+            market_history = self._get_market_history(tag)
+            income_statement = self._get_income_statement(tag)
+            info = self._get_info(tag)
+
+            # ✅ 모든 항목이 비어 있으면 중단
+            if (
+                not any(stock_history.values())
+                or not any(market_history.values())
+                or not any(income_statement.values())
+                or not any(info.values())
+            ):
+                self.logger.log(
+                    "WARN",
+                    f"[BuildItem] one or more parts missing → {row.get('crawling_id')}",
+                )
+                return None
+
             item["data"]["news_data"] = content
-            item["data"]["stock_history"] = self._get_stock_history(tag)
-            item["data"]["market_history"] = self._get_market_history(tag)
-            item["data"]["income_statement"] = self._get_income_statement(tag)
-            item["data"]["info"] = self._get_info(tag)
+            item["data"]["stock_history"] = stock_history
+            item["data"]["market_history"] = market_history
+            item["data"]["income_statement"] = income_statement
+            item["data"]["info"] = info
+
             return item
 
         except Exception as e:

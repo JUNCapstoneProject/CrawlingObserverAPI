@@ -20,7 +20,7 @@ class FinancialNotifier(NotifierBase):
         for row in rows:
             item = self._build_item(row)
             if not item:
-                self.logger.log("WARN", f"[Finance] skipping: {row.get('crawling_id')}")
+                self.logger.log("WARN", f"[Finance] no item in: {row.get('company')}")
                 continue
 
             try:
@@ -59,7 +59,7 @@ class FinancialNotifier(NotifierBase):
 
                 else:
                     analysis = "notifier 테스트"
-                    self._update_analysis(row["crawling_id"], analysis, ["financials"])
+                    # self._update_analysis(row["crawling_id"], analysis, ["financials"])
 
             except Exception as e:
                 self.logger.log(
@@ -77,7 +77,7 @@ class FinancialNotifier(NotifierBase):
                     try:
                         path[key].append(float(value))
                     except (ValueError, TypeError):
-                        path[key].append(value)  # float 변환 불가능한 경우 원본 삽입
+                        path[key].append(value)
 
             bs_map = {
                 "current_assets": "Current Assets",
@@ -121,6 +121,23 @@ class FinancialNotifier(NotifierBase):
                 set_val(item["data"]["cash_flow"], req_key, row.get(field))
 
             item["data"]["chart"] = self._get_chart_data(row["company"])
+
+            # ✅ 모든 필드가 비어 있으면 분석 제외
+            def all_empty(section):
+                return not any(v for v in section.values() if v)
+
+            if (
+                all_empty(item["data"]["balance_sheet"])
+                or all_empty(item["data"]["income_statement"])
+                or all_empty(item["data"]["cash_flow"])
+                or not item["data"]["chart"]["timestamp"]  # 차트는 timestamp로 판단
+            ):
+                self.logger.log(
+                    "WARN",
+                    f"[BuildItem] one or more parts missing → id={row.get('crawling_id')}",
+                )
+                return None
+
             return item
 
         except Exception as e:
