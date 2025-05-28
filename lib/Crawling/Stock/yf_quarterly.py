@@ -84,7 +84,6 @@ class YF_Quarterly(YFinanceStockCrawler):
                         dividend_yield=values.get("dividend_yield"),
                         posted_at=q_date,
                     )
-                    self.logger.log("DEBUG", f"{ticker} - record 생성 완료: {record}")
                     records.append(record)
 
                 if not records:
