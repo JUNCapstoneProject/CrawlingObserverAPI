@@ -67,11 +67,25 @@ class YFinanceStockCrawler(CrawlerInterface):
     def _refresh_price_data_cache(self):
         from .yf_quarterly import YF_Quarterly
         from .yf_daily import YF_Daily
+        from .yf_market import MarketDataManager
 
         self.logger.log("DEBUG", "분기 및 일간 데이터 확인 시작")
 
-        YF_Quarterly(self._company_map).crawl()
-        YF_Daily(self._company_map).crawl()
+        try:
+            manager = MarketDataManager()
+            manager.update_all()
+        except Exception as e:
+            self.logger.log("ERROR", f"[MarketDataManager]: {e}")
+
+        try:
+            YF_Quarterly(self._company_map).crawl()
+        except Exception as e:
+            self.logger.log("ERROR", f"[YF_Quarterly]: {e}")
+
+        try:
+            YF_Daily(self._company_map).crawl()
+        except Exception as e:
+            self.logger.log("ERROR", f"[YF_Daily]: {e}")
 
     def crawl(self):
         try:

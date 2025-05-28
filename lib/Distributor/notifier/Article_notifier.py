@@ -117,8 +117,18 @@ class ArticleNotifier(NotifierBase):
         try:
             with get_session() as session:
                 rows = session.execute(
-                    text("SELECT * FROM stock_vw WHERE ticker = :tag"), {"tag": tag}
+                    text(
+                        """
+                        SELECT * 
+                        FROM notifier_stock_vw 
+                        WHERE ticker = :tag 
+                        AND posted_at >= CURDATE() - INTERVAL 30 DAY
+                        ORDER BY posted_at
+                        """
+                    ),
+                    {"tag": tag},
                 )
+
                 result = {
                     k: []
                     for k in [
@@ -132,19 +142,26 @@ class ArticleNotifier(NotifierBase):
                         "Market Cap",
                     ]
                 }
+
                 found = False
                 for r in rows:
                     found = True
-                    for k in result:
-                        if k == "Date":
-                            result[k].append(str(r._mapping.get("posted_at")))
-                        else:
-                            key = k.replace(" ", "_").lower()
-                            val = r._mapping.get(key)
-                            result[k].append(float(val) if val is not None else None)
+                    result["Date"].append(str(r._mapping.get("posted_at")))
+                    result["Open"].append(float(r._mapping.get("open") or 0))
+                    result["Close"].append(float(r._mapping.get("close") or 0))
+                    result["Adj Close"].append(float(r._mapping.get("adj_close") or 0))
+                    result["High"].append(float(r._mapping.get("high") or 0))
+                    result["Low"].append(float(r._mapping.get("low") or 0))
+                    result["Volume"].append(float(r._mapping.get("volume") or 0))
+                    result["Market Cap"].append(
+                        float(r._mapping.get("market_cap") or 0)
+                    )
+
                 if not found:
                     self.logger.log("DEBUG", f"[StockHistory] no data for {tag}")
+
                 return result
+
         except Exception as e:
             self.logger.log("ERROR", f"[StockHistory] {tag}: {e}")
             return {
@@ -161,49 +178,73 @@ class ArticleNotifier(NotifierBase):
                 ]
             }
 
-    def _get_market_history(self, tag: str) -> dict:
+    def _get_market_history(self, ticker: str) -> dict:
         try:
-            info = yf.Ticker(tag).info
-            exchange = info.get("exchange", "").upper()
-            index = self._map_exchange_to_index(exchange)
+            # ✅ yfinance로 지수 심볼 추출 (백오프 포함)
+            ticker_obj = self.yf_with_backoff(ticker, "MarketHistory")
+            exchange = ticker_obj.info.get("exchange", "").upper()
 
-            ticker_obj = self.yf_with_backoff(index, "MarketHistory")
-            df = ticker_obj.history(period="7d", interval="1d")
+            if not exchange:
+                self.logger.log(
+                    "WARN", f"[MarketHistory] Index symbol not found for {ticker}"
+                )
+                return {
+                    k: []
+                    for k in [
+                        "Date",
+                        "Open",
+                        "Close",
+                        "Adj Close",
+                        "High",
+                        "Low",
+                        "Volume",
+                    ]
+                }
 
-            result = {
-                k: []
-                for k in ["Date", "Open", "Close", "Adj Close", "High", "Low", "Volume"]
-            }
-            if df.empty:
-                self.logger.log("DEBUG", f"[MarketHistory] {tag} → {index}: empty")
+            with get_session() as session:
+                rows = session.execute(
+                    text(
+                        "SELECT * FROM notifier_market_vw WHERE symbol = :tag ORDER BY date"
+                    ),
+                    {"tag": exchange},
+                )
+
+                result = {
+                    k: []
+                    for k in [
+                        "Date",
+                        "Open",
+                        "Close",
+                        "Adj Close",
+                        "High",
+                        "Low",
+                        "Volume",
+                    ]
+                }
+                found = False
+
+                for r in rows:
+                    found = True
+                    r = r._mapping
+                    result["Date"].append(str(r.get("date")))
+                    result["Open"].append(float(r.get("open") or 0))
+                    result["Close"].append(float(r.get("close") or 0))
+                    result["Adj Close"].append(float(r.get("adj_close") or 0))
+                    result["High"].append(float(r.get("high") or 0))
+                    result["Low"].append(float(r.get("low") or 0))
+                    result["Volume"].append(float(r.get("volume") or 0))
+
+                if not found:
+                    self.logger.log("DEBUG", f"[MarketHistory] no data for {exchange}")
+
                 return result
 
-            last_row = df.tail(1).iloc[0]
-            result["Date"].append(str(df.tail(1).index[0].date()))
-            for k in result:
-                if k != "Date":
-                    result[k].append(float(last_row.get(k, 0)))
-            return result
-
         except Exception as e:
-            self.logger.log("ERROR", f"[MarketHistory] {tag}: {e}")
+            self.logger.log("ERROR", f"[MarketHistory] {ticker}: {e}")
             return {
                 k: []
                 for k in ["Date", "Open", "Close", "Adj Close", "High", "Low", "Volume"]
             }
-
-    def _map_exchange_to_index(self, exchange: str) -> str:
-        mapping = {
-            "NMS": "^IXIC",
-            "NASDAQ": "^IXIC",
-            "NASDAQGS": "^IXIC",
-            "NASDAQGM": "^IXIC",
-            "NYQ": "^GSPC",
-            "NYSE": "^GSPC",
-            "AMEX": "^XAX",
-            "ARCA": "^GSPC",
-        }
-        return mapping.get(exchange, "^GSPC")
 
     def _get_income_statement(self, tag: str) -> dict:
         try:

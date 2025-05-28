@@ -44,7 +44,8 @@ class Stock_Quarterly(Base):
     shares = Column(BigInteger, nullable=False)
     eps = Column(DECIMAL(8, 4), nullable=True)
     per = Column(DECIMAL(8, 2), nullable=True)
-    dividend_yield = Column(DECIMAL(5, 4), nullable=False)
+    dividend_yield = Column(DECIMAL(5, 4), nullable=True)
+    posted_at = Column(DateTime, nullable=False)
 
 
 class Stock_Daily(Base):
@@ -56,6 +57,27 @@ class Stock_Daily(Base):
         ForeignKey("company.company_id"),
         nullable=False,
     )
+
     adj_close = Column(DECIMAL(18, 2), nullable=False)
     market_cap = Column(BigInteger, nullable=False)
     posted_at = Column(DateTime, nullable=False)
+
+    open = Column(DECIMAL(18, 2), nullable=False)
+    high = Column(DECIMAL(18, 2), nullable=False)
+    low = Column(DECIMAL(18, 2), nullable=False)
+    close = Column(DECIMAL(18, 2), nullable=False)
+    volume = Column(BigInteger, nullable=False)
+
+
+class Stock_Market(Base):
+    __tablename__ = "stock_market"
+
+    sm_id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    symbol = Column(VARCHAR(10), nullable=False)
+    date = Column(DateTime, nullable=False)
+    open = Column(DECIMAL(18, 2), nullable=False)
+    high = Column(DECIMAL(18, 2), nullable=False)
+    low = Column(DECIMAL(18, 2), nullable=False)
+    close = Column(DECIMAL(18, 2), nullable=False)
+    volume = Column(BigInteger, nullable=False)
+    adj_close = Column(DECIMAL(18, 2), nullable=False)

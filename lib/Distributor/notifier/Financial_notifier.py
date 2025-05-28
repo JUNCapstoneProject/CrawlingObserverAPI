@@ -28,7 +28,6 @@ class FinancialNotifier(NotifierBase):
 
                 if self.socket_condition:
                     result = self.client.request_tcp(item)
-
                     status_code = result.get("status_code")
                     message = result.get("message")
 
@@ -40,13 +39,9 @@ class FinancialNotifier(NotifierBase):
                         else:
                             msg = f"[Finance] 알 수 없는 상태 코드({status_code})"
 
-                        self.logger.log(
-                            "ERROR",
-                            f"{msg} → {message}: {row['company']}",
-                        )
-                        continue  # 실패 시 analysis 건너뜀
+                        self.logger.log("ERROR", f"{msg} → {message}: {row['company']}")
+                        continue
 
-                    # 200 성공 시만 분석 처리
                     analysis = result.get("item", {}).get("result")
                     if analysis:
                         self._update_analysis(
@@ -54,8 +49,7 @@ class FinancialNotifier(NotifierBase):
                         )
                     else:
                         self.logger.log(
-                            "WARN",
-                            f"[Finance] 분석 결과 없음 → {row['crawling_id']}",
+                            "WARN", f"[Finance] 분석 결과 없음 → {row['crawling_id']}"
                         )
 
                 else:
@@ -72,58 +66,21 @@ class FinancialNotifier(NotifierBase):
     def _build_item(self, row):
         try:
             item = copy.deepcopy(finance_item)
+            company = row["company"]
 
-            def set_val(path, key, value):
-                if value is not None:
-                    try:
-                        path[key].append(float(value))
-                    except (ValueError, TypeError):
-                        path[key].append(value)
+            recent_rows = self._fetch_recent_quarter_rows(company)  # 5개 row만 반환
 
-            bs_map = {
-                "current_assets": "Current Assets",
-                "current_liabilities": "Current Liabilities",
-                "cash_and_cash_equivalents": "Cash And Cash Equivalents",
-                "accounts_receivable": "Accounts Receivable",
-                "cash_cash_equivalents_and_short_term_investments": "Cash Cash Equivalents And Short Term Investments",
-                "cash_equivalents": "Cash Equivalents",
-                "cash_financial": "Cash Financial",
-                "other_short_term_investments": "Other Short Term Investments",
-                "stockholders_equity": "Stockholders Equity",
-                "total_assets": "Total Assets",
-                "retained_earnings": "Retained Earnings",
-                "inventory": "Inventory",
-            }
+            item["data"]["balance_sheet"] = self._build_section_fieldwise_padded(
+                recent_rows, self._bs_map()
+            )
+            item["data"]["income_statement"] = self._build_section_fieldwise_padded(
+                recent_rows, self._is_map()
+            )
+            item["data"]["cash_flow"] = self._build_section_fieldwise_padded(
+                recent_rows, self._cf_map()
+            )
+            item["data"]["chart"] = self._get_chart_data(company)
 
-            is_map = {
-                "total_revenue": "Total Revenue",
-                "cost_of_revenue": "Cost Of Revenue",
-                "gross_profit": "Gross Profit",
-                "sgna": "Selling General And Administration",
-                "operating_income": "Operating Income",
-                "other_non_operating_income_expenses": "Other Non Operating Income Expenses",
-                "reconciled_depreciation": "Reconciled Depreciation",
-                "ebitda": "EBITDA",
-            }
-
-            cf_map = {
-                "operating_cash_flow": "Operating Cash Flow",
-                "investing_cash_flow": "Investing Cash Flow",
-                "capital_expenditure": "Capital Expenditure",
-            }
-
-            for field, req_key in bs_map.items():
-                set_val(item["data"]["balance_sheet"], req_key, row.get(field))
-
-            for field, req_key in is_map.items():
-                set_val(item["data"]["income_statement"], req_key, row.get(field))
-
-            for field, req_key in cf_map.items():
-                set_val(item["data"]["cash_flow"], req_key, row.get(field))
-
-            item["data"]["chart"] = self._get_chart_data(row["company"])
-
-            # ✅ 모든 필드가 비어 있으면 분석 제외
             def all_empty(section):
                 return not any(v for v in section.values() if v)
 
@@ -131,7 +88,7 @@ class FinancialNotifier(NotifierBase):
                 all_empty(item["data"]["balance_sheet"])
                 or all_empty(item["data"]["income_statement"])
                 or all_empty(item["data"]["cash_flow"])
-                or not item["data"]["chart"]["timestamp"]  # 차트는 timestamp로 판단
+                or not item["data"]["chart"]["timestamp"]
             ):
                 return None
 
@@ -139,10 +96,61 @@ class FinancialNotifier(NotifierBase):
 
         except Exception as e:
             self.logger.log(
-                "ERROR",
-                f"[BuildItem] {e}: tag={row.get('tag', '?')}, id={row.get('crawling_id', '?')}",
+                "ERROR", f"[BuildItem] {e}: company={row.get('company', '?')}"
             )
             return None
+
+    def _fetch_recent_quarter_rows(self, company: str) -> list[dict]:
+        try:
+            with get_session() as session:
+                rows = (
+                    session.execute(
+                        text(
+                            """
+                        SELECT * FROM notifier_financial_vw
+                        WHERE company = :tag
+                        ORDER BY posted_at DESC
+                        LIMIT 5
+                        """
+                        ),
+                        {"tag": company},
+                    )
+                    .mappings()
+                    .all()
+                )
+
+                return rows or []
+
+        except Exception as e:
+            self.logger.log("ERROR", f"[FetchQuarters] {company}: {e}")
+            return []
+
+    def _build_section_fieldwise_padded(
+        self, rows: list[dict], mapping: dict[str, str]
+    ) -> dict:
+        section = {}
+
+        for field, req_key in mapping.items():
+            values = []
+
+            for row in rows:
+                if row is None:
+                    continue
+                val = row.get(field)
+                if val is not None:
+                    try:
+                        values.append(float(val))
+                    except (ValueError, TypeError):
+                        values.append(val)
+
+                if len(values) == 4:
+                    break
+
+            # 부족하면 앞에서부터 None으로 패딩
+            padded = [None] * (4 - len(values)) + values
+            section[req_key] = padded
+
+        return section
 
     def _get_chart_data(self, company: str) -> dict:
         try:
@@ -151,10 +159,11 @@ class FinancialNotifier(NotifierBase):
                     text(
                         """
                         SELECT posted_at, open, close
-                        FROM stock_vw
+                        FROM notifier_stock_vw
                         WHERE ticker = :ticker
+                          AND posted_at >= CURDATE() - INTERVAL 1 YEAR
                         ORDER BY posted_at ASC
-                    """
+                        """
                     ),
                     {"ticker": company},
                 )
@@ -199,3 +208,38 @@ class FinancialNotifier(NotifierBase):
                     )
         except Exception as e:
             self.logger.log("ERROR", f"[Update] crawling_id {crawling_id}: {e}")
+
+    def _bs_map(self) -> dict[str, str]:
+        return {
+            "current_assets": "Current Assets",
+            "current_liabilities": "Current Liabilities",
+            "cash_and_cash_equivalents": "Cash And Cash Equivalents",
+            "accounts_receivable": "Accounts Receivable",
+            "cash_cash_equivalents_and_short_term_investments": "Cash Cash Equivalents And Short Term Investments",
+            "cash_equivalents": "Cash Equivalents",
+            "cash_financial": "Cash Financial",
+            "other_short_term_investments": "Other Short Term Investments",
+            "stockholders_equity": "Stockholders Equity",
+            "total_assets": "Total Assets",
+            "retained_earnings": "Retained Earnings",
+            "inventory": "Inventory",
+        }
+
+    def _is_map(self) -> dict[str, str]:
+        return {
+            "total_revenue": "Total Revenue",
+            "cost_of_revenue": "Cost Of Revenue",
+            "gross_profit": "Gross Profit",
+            "sgna": "Selling General And Administration",
+            "operating_income": "Operating Income",
+            "other_non_operating_income_expenses": "Other Non Operating Income Expenses",
+            "reconciled_depreciation": "Reconciled Depreciation",
+            "ebitda": "EBITDA",
+        }
+
+    def _cf_map(self) -> dict[str, str]:
+        return {
+            "operating_cash_flow": "Operating Cash Flow",
+            "investing_cash_flow": "Investing Cash Flow",
+            "capital_expenditure": "Capital Expenditure",
+        }
