@@ -179,9 +179,6 @@ class YF_Daily(YFinanceStockCrawler):
                 for dt, row in df_tkr.iterrows():
                     shares = self._get_quarter_shares_for_date(ticker, dt.date())
                     if shares is None:
-                        self.logger.log(
-                            "WARN", f"{ticker} {dt.date()} 분기 shares 없음 - 스킵"
-                        )
                         continue
 
                     try:
