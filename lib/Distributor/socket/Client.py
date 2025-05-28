@@ -42,7 +42,6 @@ class SocketClient(SocketInterface):
 
         # 소켓 통신
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.settimeout(10)
         addr, port = self.resolve_addr(self.requests_message)
         client_socket.connect((addr, port))
 
