@@ -13,3 +13,4 @@ class Company(Base):
     name_kr = Column(VARCHAR(255), nullable=False)
     name_en = Column(VARCHAR(255), nullable=False)
     sector = Column(VARCHAR(50))
+    market = Column(VARCHAR(20))

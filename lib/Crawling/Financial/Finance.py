@@ -208,7 +208,7 @@ class FinancialCrawler(CrawlerInterface):
         df["financial_type"] = financial_type
 
         return (
-            df.sort_values("posted_at", ascending=False).head(3).reset_index(drop=True)
+            df.sort_values("posted_at", ascending=False).head(5).reset_index(drop=True)
         )
 
     def fill_missing_fields(self, row: dict, section: str) -> dict:

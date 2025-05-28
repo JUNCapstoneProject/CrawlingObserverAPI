@@ -1,6 +1,7 @@
 from datetime import date
 import math
 import yfinance as yf
+import pandas as pd
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -8,15 +9,15 @@ from lib.Crawling.Stock.YFinance_stock import YFinanceStockCrawler
 from lib.Distributor.secretary.session import get_session
 from lib.Distributor.secretary.models.company import Company
 from lib.Distributor.secretary.models.stock import Stock_Quarterly
-from lib.Logger.logger import Logger
+from lib.Logger.logger import Logger  # Logger import 추가
 
 
 class YF_Quarterly(YFinanceStockCrawler):
 
     def __init__(self, _company_map):
-        self.logger = Logger(self.__class__.__name__)
         self._missing: list[str] = []
         self._company_map = _company_map
+        self.logger = Logger("YF_Quarterly")  # Logger 인스턴스 생성
 
     def check_missing(self) -> bool:
         try:
@@ -48,7 +49,6 @@ class YF_Quarterly(YFinanceStockCrawler):
         try:
             today = date.today()
 
-            # ❗조건 판단: 매월 2일이거나 누락 종목 존재 시만 실행
             if today.day != 2 and not self.check_missing():
                 self.logger.log("DEBUG", "분기 데이터 수집 완료")
                 return
@@ -56,33 +56,43 @@ class YF_Quarterly(YFinanceStockCrawler):
             target = self._missing or list(self._company_map.keys())
             self.logger.log("DEBUG", f"분기 데이터 수집 시작 - {len(target)} 종목")
 
-            # success_count = 0
-            # total = len(target)
-
             records = []
 
-            def crawl_one(ticker: str) -> Optional[Stock_Quarterly]:
+            def crawl_one(ticker: str) -> list[Stock_Quarterly]:
                 data = self.fetch_fundamentals(ticker)
                 if not data:
-                    self.logger.log("ERROR", f"{ticker} 분기 데이터 수집 실패")
-                    return None
+                    self.logger.log("WARN", f"{ticker} 분기 데이터 없음")
+                    return []
 
                 company = self._company_map.get(ticker)
                 if not company:
                     self.logger.log("WARN", f"{ticker}에 대한 company 정보 없음")
-                    return None
+                    return []
 
-                if data.get("shares") is None:
-                    self.logger.log("WARN", f"{ticker} → 발행 주식수 누락")
-                    return None
+                records = []
+                for q_date, values in data.items():
+                    shares = values.get("shares")
+                    if shares is None:
+                        self.logger.log("WARN", f"{ticker} - {q_date} shares 없음")
+                        continue
 
-                return Stock_Quarterly(
-                    company_id=company["company_id"],
-                    shares=data["shares"],
-                    eps=data["eps"],
-                    per=data["per"],
-                    dividend_yield=data["dividend_yield"],
-                )
+                    record = Stock_Quarterly(
+                        company_id=company["company_id"],
+                        shares=shares,
+                        eps=values.get("eps"),
+                        per=values.get("per"),
+                        dividend_yield=values.get("dividend_yield"),
+                        posted_at=q_date,
+                    )
+                    self.logger.log("DEBUG", f"{ticker} - record 생성 완료: {record}")
+                    records.append(record)
+
+                if not records:
+                    self.logger.log(
+                        "WARN", f"{ticker}의 모든 분기 데이터가 유효하지 않음"
+                    )
+
+                return records
 
             with ThreadPoolExecutor(max_workers=5) as executor:
                 futures = {
@@ -91,9 +101,8 @@ class YF_Quarterly(YFinanceStockCrawler):
                 for future in as_completed(futures):
                     result = future.result()
                     if result:
-                        records.append(result)
+                        records.extend(result)
 
-            # DB에 벌크 저장
             try:
                 with get_session() as session:
                     session.bulk_save_objects(records)
@@ -107,12 +116,11 @@ class YF_Quarterly(YFinanceStockCrawler):
         except Exception as e:
             self.logger.log("ERROR", f"분기데이터 수집 중 예외 발생: {e}")
 
-    def fetch_fundamentals(self, ticker: str) -> Optional[dict]:
+    def fetch_fundamentals(self, ticker: str) -> Optional[dict[date, dict]]:
         try:
             tkr = yf.Ticker(ticker)
-
-            shares = self._get_shares_outstanding(tkr)
-            if not shares:
+            shares_dict = self._get_quarterly_shares(tkr)
+            if not shares_dict:
                 return None
 
             info = tkr.info
@@ -129,31 +137,76 @@ class YF_Quarterly(YFinanceStockCrawler):
             ):
                 per = None
 
-            return {
-                "shares": int(shares),
-                "eps": eps,
-                "per": per,
-                "dividend_yield": dividend_yield,
+            result = {
+                q_date: {
+                    "shares": shares,
+                    "eps": eps,
+                    "per": per,
+                    "dividend_yield": dividend_yield,
+                }
+                for q_date, shares in shares_dict.items()
             }
+
+            return result or None
 
         except Exception as e:
             self.logger.log("ERROR", f"{ticker} fundamentals 수집 실패: {e}")
             return None
 
-    def _get_shares_outstanding(self, tkr) -> Optional[int]:
-        try:
-            shares = None
-            if hasattr(tkr, "fast_info"):
-                shares = tkr.fast_info.get("sharesOutstanding")
-            if not shares:
-                try:
-                    shares = tkr.get_info()["sharesOutstanding"]
-                except AttributeError:
-                    shares = tkr.info.get("sharesOutstanding")
-            if shares:
-                return int(shares)
+    def _get_recent_quarter_ends(self, base_date: date, count=4) -> list[date]:
+        quarters = []
+        year = base_date.year
+        month = base_date.month
+
+        while len(quarters) < count:
+            if month >= 10:
+                quarter_end = date(year, 9, 30)
+            elif month >= 7:
+                quarter_end = date(year, 6, 30)
+            elif month >= 4:
+                quarter_end = date(year, 3, 31)
             else:
-                self.logger.log("WARN", f"{tkr.ticker} - shares 조회 실패")
+                quarter_end = date(year - 1, 12, 31)
+
+            quarters.append(quarter_end)
+            month = quarter_end.month - 3
+            if month <= 0:
+                month += 12
+                year -= 1
+
+        return quarters
+
+    def _get_quarterly_shares(self, tkr) -> Optional[dict[date, int]]:
+        try:
+            df = tkr.get_shares_full(start="2019-01-01", end=str(date.today()))
+            if df is None or df.empty:
+                return None
+
+            if isinstance(df, pd.Series):
+                df = df.to_frame(name="Shares")
+
+            df = df[~df.index.duplicated(keep="first")]
+            df.index = df.index.tz_localize(None)
+            df.reset_index(inplace=True)
+            df.rename(columns={"index": "Date"}, inplace=True)
+
+            result = {}
+            quarter_ends = self._get_recent_quarter_ends(date.today(), count=4)
+
+            for qd in quarter_ends:
+                df["date_diff"] = df["Date"].apply(
+                    lambda x: abs((x - pd.Timestamp(qd)).days)
+                )
+                nearest_row = df.loc[df["date_diff"].idxmin()]
+
+                if nearest_row["date_diff"] > 30:
+                    continue
+
+                shares = nearest_row["Shares"]
+                if pd.notna(shares):
+                    result[qd] = int(shares)
+
+            return result if result else None
+
         except Exception as e:
-            self.logger.log("WARN", f"{tkr.ticker} - shares 조회 실패: {e}")
-        return None
+            return None
