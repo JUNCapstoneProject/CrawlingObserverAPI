@@ -27,8 +27,8 @@ class SocketClient(SocketInterface):
         try:
             # 압축 및 base64 인코딩
             json_payload = json.dumps(self.requests_message)
-            compressed = zlib.compress(json_payload.encode())
-            # datagram = base64.b64encode(compressed).decode("utf-8")
+            compressed = zlib.compress(json_payload.encode("utf-8"))
+            datagram = base64.b64encode(compressed).decode("utf-8")
         except Exception as e:
             self.logger.log("ERROR", f"[ENCODE] 메시지 인코딩 실패: {e}")
             raise
@@ -57,7 +57,7 @@ class SocketClient(SocketInterface):
             self.logger.log(
                 "DEBUG", f"[SEND] 데이터 전송 (recv_timeout={self.RECV_TIMEOUT}s)"
             )
-            client_socket.sendall(compressed.encode("utf-8"))
+            client_socket.sendall(datagram.encode("utf-8"))
 
             try:
                 data = client_socket.recv(self.SOCKET_BYTE)
