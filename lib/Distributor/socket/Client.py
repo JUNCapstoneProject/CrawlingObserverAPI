@@ -2,6 +2,7 @@ import socket
 import copy
 import json
 import zlib
+import base64
 
 # Bridge
 from lib.Distributor.socket.Interface import SocketInterface
@@ -24,26 +25,20 @@ class SocketClient(SocketInterface):
     def request_tcp(self, item):
         self.requests_message["body"]["item"] = item
 
-        # 압축 테스트
         try:
+            # 압축 및 base64 인코딩
             json_payload = json.dumps(self.requests_message)
             compressed = zlib.compress(json_payload.encode("utf-8"))
-            self.logger.log("DEBUG", f"[TEST] 압축 크기: {len(compressed)} bytes")
-
-            decompressed = zlib.decompress(compressed).decode("utf-8")
-            parsed = json.loads(decompressed)
-            self.logger.log(
-                "DEBUG", f"[TEST] 압축 해제 성공: keys = {list(parsed.keys())}"
-            )
+            datagram = base64.b64encode(compressed).decode("utf-8")
         except Exception as e:
-            self.logger.log("ERROR", f"[TEST] 압축 테스트 실패: {e}")
+            self.logger.log("ERROR", f"[ENCODE] 메시지 인코딩 실패: {e}")
             raise
 
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         addr, port = self.resolve_addr(self.requests_message)
 
         try:
-            # 연결 시 타임아웃
+            # 연결 시 타임아웃 설정
             client_socket.settimeout(self.CONNECT_TIMEOUT)
             self.logger.log(
                 "DEBUG",
@@ -63,7 +58,7 @@ class SocketClient(SocketInterface):
             self.logger.log(
                 "DEBUG", f"[SEND] 데이터 전송 (recv_timeout={self.RECV_TIMEOUT}s)"
             )
-            client_socket.sendall(compressed)
+            client_socket.sendall(datagram.encode("utf-8"))
 
             try:
                 data = client_socket.recv(self.SOCKET_BYTE)
