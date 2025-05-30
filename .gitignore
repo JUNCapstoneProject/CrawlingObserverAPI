@@ -6,7 +6,7 @@ __pycache__/
 **/__pycache__/
 
 # Jupyter 노트북 체크포인트 및 임시 파일
-.ipynb_checkpoints/
+.ipynb_checkpoints/ 
 **/imsi.ipynb
 
 # Poetry 관련 파일
