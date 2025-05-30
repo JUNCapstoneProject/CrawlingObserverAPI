@@ -1,8 +1,8 @@
 import socket
 import copy
 import json
-import zlib
 import base64
+import zstandard as zstd
 
 # Bridge
 from lib.Distributor.socket.Interface import SocketInterface
@@ -14,63 +14,38 @@ class SocketClient(SocketInterface):
     def __init__(self):
         self.requests_message = copy.deepcopy(requests_message)
         self.logger = Logger(self.__class__.__name__)
-        self.CONNECT_TIMEOUT = 10
-        self.RECV_TIMEOUT = 30
+        self.cctx = zstd.ZstdCompressor(level=9)
 
     @staticmethod
-    def resolve_addr(message):
+    def resolve_addr(message=None):
         return "StockAnalysisAPI_service", 4006
 
     def request_tcp(self, item):
+        """
+        item을 입력으로 받아 request_message를 만들어 요청하고,
+        data만 반환
+        """
         self.requests_message["body"]["item"] = item
 
-        try:
-            # 압축 및 base64 인코딩
-            json_payload = json.dumps(self.requests_message)
-            compressed = zlib.compress(json_payload.encode("utf-8"))
-            datagram = base64.b64encode(compressed).decode("utf-8")
-        except Exception as e:
-            self.logger.log("ERROR", f"[ENCODE] 메시지 인코딩 실패: {e}")
-            raise
-
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        addr, port = self.resolve_addr(self.requests_message)
-
+        addr, port = self.resolve_addr()
+        self.logger.log("DEBUG", f"Connecting to {addr}:{port}")
+        client_socket.connect((addr, port))
         try:
-            # 연결 시 타임아웃 설정
-            client_socket.settimeout(self.CONNECT_TIMEOUT)
-            self.logger.log(
-                "DEBUG",
-                f"[CONNECT] Connecting to {addr}:{port} (timeout={self.CONNECT_TIMEOUT}s)",
-            )
-            try:
-                client_socket.connect((addr, port))
-            except socket.timeout:
-                self.logger.log("ERROR", "[CONNECT] 연결 타임아웃 발생")
-                raise
-            except Exception as e:
-                self.logger.log("ERROR", f"[CONNECT] 연결 예외 발생: {e}")
-                raise
+            datagram = self.cctx.compress(json.dumps(self.requests_message).encode())
+            datagram = base64.b64encode(datagram) + b"<END>"
+            self.logger.log("DEBUG", f"datagram len : {len(datagram)}")
+            client_socket.sendall(datagram)
+            self.logger.log("DEBUG", "Datagram sent, waiting for response...")
+            data = client_socket.recv(1024)
+            self.logger.log("DEBUG", f"Received data: {data[:100]}...")  # 일부만 출력
+            message = json.loads(data.decode())
+            self.logger.log("DEBUG", f"Decoded message: {message}")
+            return message
 
-            # 응답 대기 타임아웃 설정
-            client_socket.settimeout(self.RECV_TIMEOUT)
-            self.logger.log(
-                "DEBUG", f"[SEND] 데이터 전송 (recv_timeout={self.RECV_TIMEOUT}s)"
-            )
-            client_socket.sendall(datagram.encode("utf-8"))
-
-            try:
-                data = client_socket.recv(self.SOCKET_BYTE)
-                message = json.loads(data.decode())
-                self.logger.log("DEBUG", "[RECV] 응답 수신 완료")
-                return message
-            except socket.timeout:
-                self.logger.log("ERROR", "[RECV] 응답 수신 타임아웃 발생")
-                raise
-            except Exception as e:
-                self.logger.log("ERROR", f"[RECV] 응답 수신 예외 발생: {e}")
-                raise
-
+        except Exception as e:
+            self.logger.log("ERROR", f"TCP 요청 중 오류: {e}")
+            raise
         finally:
             client_socket.close()
-            self.logger.log("DEBUG", "[SOCKET] 소켓 종료")
+            self.logger.log("DEBUG", "Socket closed")
