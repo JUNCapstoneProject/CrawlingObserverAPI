@@ -151,7 +151,7 @@ class YF_Daily(YFinanceStockCrawler):
                     continue
 
                 df_tkr = df[ticker].dropna(subset=["Close", "Open", "High", "Low"])
-                df_tkr = df_tkr[~df_tkr.index.duplicated(keep="last")]
+                df_tkr = df_tkr[~df_tkr.index.duplicated(keep="last")]  # 중복 제거
 
                 company = self._company_map.get(ticker)
                 if not company:
