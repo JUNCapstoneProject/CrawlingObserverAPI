@@ -151,14 +151,29 @@ class YF_Daily(YFinanceStockCrawler):
                     continue
 
                 df_tkr = df[ticker].dropna(subset=["Close", "Open", "High", "Low"])
+                df_tkr = df_tkr[~df_tkr.index.duplicated(keep="last")]
 
                 company = self._company_map.get(ticker)
                 if not company:
                     self.logger.log("WARN", f"{ticker} 회사 정보 없음 → 스킵")
                     continue
 
+                # ⬇️ 이미 존재하는 날짜 가져오기
+                with get_session() as session:
+                    date_list = [d.date() for d in df_tkr.index]
+                    existing_dates = set(
+                        r[0]
+                        for r in session.query(Stock_Daily.posted_at).filter(
+                            Stock_Daily.company_id == company["company_id"],
+                            Stock_Daily.posted_at.in_(date_list),
+                        )
+                    )
+
                 records = []
                 for dt, row in df_tkr.iterrows():
+                    if dt.date() in existing_dates:
+                        continue
+
                     try:
                         shares = self._get_quarter_shares_for_date(ticker, dt.date())
                         if shares is None:
