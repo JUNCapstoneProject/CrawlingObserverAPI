@@ -161,8 +161,8 @@ class FinancialNotifier(NotifierBase):
                         SELECT posted_at, open, close
                         FROM notifier_stock_vw
                         WHERE ticker = :ticker
-                          AND posted_at >= CURDATE() - INTERVAL 1 YEAR
-                        ORDER BY posted_at ASC
+                        ORDER BY posted_at DESC
+                        LIMIT 300
                         """
                     ),
                     {"ticker": company},
@@ -178,6 +178,10 @@ class FinancialNotifier(NotifierBase):
 
                 if not found:
                     self.logger.log("DEBUG", f"[ChartData] no data for {company}")
+
+                # 최신순 정렬이므로 다시 시간순 정렬
+                for key in chart:
+                    chart[key] = list(reversed(chart[key]))
 
                 return chart
 

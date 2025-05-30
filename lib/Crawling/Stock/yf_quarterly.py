@@ -152,32 +152,9 @@ class YF_Quarterly(YFinanceStockCrawler):
             self.logger.log("ERROR", f"{ticker} fundamentals 수집 실패: {e}")
             return None
 
-    def _get_recent_quarter_ends(self, base_date: date, count=4) -> list[date]:
-        quarters = []
-        year = base_date.year
-        month = base_date.month
-
-        while len(quarters) < count:
-            if month >= 10:
-                quarter_end = date(year, 9, 30)
-            elif month >= 7:
-                quarter_end = date(year, 6, 30)
-            elif month >= 4:
-                quarter_end = date(year, 3, 31)
-            else:
-                quarter_end = date(year - 1, 12, 31)
-
-            quarters.append(quarter_end)
-            month = quarter_end.month - 3
-            if month <= 0:
-                month += 12
-                year -= 1
-
-        return quarters
-
     def _get_quarterly_shares(self, tkr) -> Optional[dict[date, int]]:
         try:
-            df = tkr.get_shares_full(start="2019-01-01", end=str(date.today()))
+            df = tkr.get_shares_full(start="2015-01-01", end=str(date.today()))
             if df is None or df.empty:
                 return None
 
@@ -189,23 +166,21 @@ class YF_Quarterly(YFinanceStockCrawler):
             df.reset_index(inplace=True)
             df.rename(columns={"index": "Date"}, inplace=True)
 
+            from pandas.tseries.offsets import QuarterEnd
+
+            df["quarter"] = df["Date"].apply(lambda x: (x + QuarterEnd(0)).date())
+
+            df.sort_values("Date", inplace=True)
+            quarter_grouped = df.groupby("quarter").last()
+
             result = {}
-            quarter_ends = self._get_recent_quarter_ends(date.today(), count=4)
-
-            for qd in quarter_ends:
-                df["date_diff"] = df["Date"].apply(
-                    lambda x: abs((x - pd.Timestamp(qd)).days)
-                )
-                nearest_row = df.loc[df["date_diff"].idxmin()]
-
-                if nearest_row["date_diff"] > 30:
-                    continue
-
-                shares = nearest_row["Shares"]
+            for q_date, row in quarter_grouped.iterrows():
+                shares = row["Shares"]
                 if pd.notna(shares):
-                    result[qd] = int(shares)
+                    result[q_date] = int(shares)
 
             return result if result else None
 
         except Exception as e:
+            self.logger.log("ERROR", f"{tkr.ticker} shares 추출 실패: {e}")
             return None

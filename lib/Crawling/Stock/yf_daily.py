@@ -89,17 +89,8 @@ class YF_Daily(YFinanceStockCrawler):
 
     def check_missing(self, prev_day: str) -> list[str]:
         """
-        1. 최근 거래일 데이터가 없는 종목 → 무조건 수집
-        2. 최근 거래일 데이터는 있지만, 1년치 데이터 부족 → 수집
+        최근 거래일 데이터가 없는 종목만 수집 대상으로 판단
         """
-        one_year_ago = date.today() - timedelta(days=366)
-
-        try:
-            required_days = len(yf.Ticker("AAPL").history(period="1y", interval="1d"))
-        except Exception as e:
-            self.logger.log("WARN", f"거래일 수 계산 실패 → 전체 수집: {e}")
-            return list(self._company_map.keys())
-
         try:
             with get_session() as session:
                 recent_rows = (
@@ -107,23 +98,12 @@ class YF_Daily(YFinanceStockCrawler):
                     .join(Stock_Daily, Company.company_id == Stock_Daily.company_id)
                     .filter(func.date(Stock_Daily.posted_at) == prev_day)
                     .distinct()
+                    .all()
                 )
                 recent_updated = {row[0] for row in recent_rows}
 
-                one_year_rows = (
-                    session.query(Company.ticker, func.count(Stock_Daily.posted_at))
-                    .join(Stock_Daily, Company.company_id == Stock_Daily.company_id)
-                    .filter(Stock_Daily.posted_at >= one_year_ago)
-                    .group_by(Company.ticker)
-                    .having(func.count(Stock_Daily.posted_at) >= required_days)
-                    .all()
-                )
-                one_year_complete = {r[0] for r in one_year_rows}
-
                 result = [
-                    t
-                    for t in self._company_map.keys()
-                    if t not in recent_updated or t not in one_year_complete
+                    t for t in self._company_map.keys() if t not in recent_updated
                 ]
                 self._missing = result
                 return result
@@ -151,7 +131,7 @@ class YF_Daily(YFinanceStockCrawler):
         try:
             df = yf.download(
                 tickers=missing,
-                period="1y",
+                period="10y",
                 interval="1d",
                 auto_adjust=True,
                 group_by="ticker",
@@ -162,7 +142,7 @@ class YF_Daily(YFinanceStockCrawler):
             self.logger.log("ERROR", f"yf.download 실패: {e}")
             return
 
-        records = []
+        total_saved = 0
 
         for ticker in missing:
             try:
@@ -171,17 +151,19 @@ class YF_Daily(YFinanceStockCrawler):
                     continue
 
                 df_tkr = df[ticker].dropna(subset=["Close", "Open", "High", "Low"])
+
                 company = self._company_map.get(ticker)
                 if not company:
-                    self.logger.log("WARN", f"{ticker} 회사 정보 없음 - 스킵")
+                    self.logger.log("WARN", f"{ticker} 회사 정보 없음 → 스킵")
                     continue
 
+                records = []
                 for dt, row in df_tkr.iterrows():
-                    shares = self._get_quarter_shares_for_date(ticker, dt.date())
-                    if shares is None:
-                        continue
-
                     try:
+                        shares = self._get_quarter_shares_for_date(ticker, dt.date())
+                        if shares is None:
+                            continue
+
                         market_cap = round(row["Close"] * shares)
                         record = Stock_Daily(
                             company_id=company["company_id"],
@@ -201,16 +183,21 @@ class YF_Daily(YFinanceStockCrawler):
                         records.append(record)
                     except Exception as e_inner:
                         self.logger.log(
-                            "WARN", f"{ticker} {dt.date()} 처리 오류: {e_inner}"
+                            "WARN", f"{ticker} {dt.date()} 처리 실패: {e_inner}"
                         )
 
-            except Exception as e:
-                self.logger.log("ERROR", f"{ticker} 처리 실패: {e}")
+                if not records:
+                    continue
 
-        try:
-            with get_session() as session:
-                session.bulk_save_objects(records)
-                session.commit()
-            self.logger.log("DEBUG", f"일간 데이터 벌크 저장 완료 - {len(records)} 건")
-        except Exception as e:
-            self.logger.log("ERROR", f"벌크 저장 실패: {e}")
+                try:
+                    with get_session() as session:
+                        session.bulk_save_objects(records)
+                        session.commit()
+                    total_saved += len(records)
+                except Exception as e_db:
+                    self.logger.log("ERROR", f"{ticker} DB 저장 실패: {e_db}")
+
+            except Exception as e_outer:
+                self.logger.log("ERROR", f"{ticker} 처리 실패: {e_outer}")
+
+        self.logger.log("DEBUG", f"전체 저장 완료: {total_saved} 건")
