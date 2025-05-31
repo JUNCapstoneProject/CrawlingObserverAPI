@@ -115,10 +115,9 @@ class YF_Daily:
             except Exception as e:
                 raise RuntimeError(f"yf.download 실패: {e}")
 
-            total_saved = 0
+            all_records = []
 
             for ticker in missing:
-
                 if ticker not in df.columns.levels[0]:
                     self._add_fail(ticker, "데이터 없음")
                     continue
@@ -131,7 +130,6 @@ class YF_Daily:
                     self._add_fail(ticker, "회사 정보 없음")
                     continue
 
-                records = []
                 for dt, row in df_tkr.iterrows():
                     shares = self._get_quarter_shares_for_date(ticker, dt.date())
                     if shares is None:
@@ -155,38 +153,40 @@ class YF_Daily:
                             market_cap=int(market_cap),
                             posted_at=dt.date(),
                         )
-                        records.append(record)
+                        all_records.append(record)
                     except Exception as e_inner:
                         self._add_fail(ticker, f"{dt.date()} 처리 실패: {e_inner}")
 
-                if not records:
-                    self._add_fail(ticker, "모든 일간 데이터가 유효하지 않음")
-                    continue
+            if not all_records:
+                self.logger.warning("저장할 데이터 없음")
+                return
 
-                # 중복 날짜 제거
+            # 중복 제거 (company_id + posted_at 기준)
+            with get_session() as session:
+                existing = set(
+                    session.query(Stock_Daily.company_id, Stock_Daily.posted_at)
+                    .filter(
+                        Stock_Daily.posted_at.in_([r.posted_at for r in all_records])
+                    )
+                    .all()
+                )
+
+            filtered_records = [
+                r for r in all_records if (r.company_id, r.posted_at) not in existing
+            ]
+
+            try:
                 with get_session() as session:
-                    posted_dates = {
-                        r[0]
-                        for r in session.query(Stock_Daily.posted_at).filter(
-                            Stock_Daily.company_id == company["company_id"],
-                            Stock_Daily.posted_at.in_([r.posted_at for r in records]),
-                        )
-                    }
-
-                records = [r for r in records if r.posted_at not in posted_dates]
-
-                try:
-                    with get_session() as session:
-                        session.bulk_save_objects(records)
-                        session.commit()
-                    total_saved += len(records)
-                except Exception as e_db:
-                    self.logger.error(f"일간 데이터 저장 중 예외 발생: {e_db}")
+                    session.bulk_save_objects(filtered_records)
+                    session.commit()
+                self.logger.debug(f"일간 데이터 저장 완료 - {len(filtered_records)} 건")
+            except Exception as e_db:
+                self.logger.error(f"일간 데이터 저장 중 예외 발생: {e_db}")
 
             if self.failed_tickers:
                 total = sum(len(tickers) for tickers in self.failed_tickers.values())
                 self.logger.warning(
-                    f"총 {total}개 분기 데이터 수집 실패:\n"
+                    f"총 {total}개 일간 데이터 수집 실패:\n"
                     + "\n".join(
                         f"{reason}:\n"
                         + "\n".join(
@@ -197,8 +197,6 @@ class YF_Daily:
                         for sorted_tickers in [sorted(tickers)]
                     )
                 )
-
-            self.logger.debug(f"일간 데이터 저장 완료 - {total_saved} 건")
 
         except Exception as e:
             raise RuntimeError(f"일간 데이터 수집 중 예외 발생: {e}")
