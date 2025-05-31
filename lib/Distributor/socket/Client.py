@@ -7,13 +7,13 @@ import zstandard as zstd
 # Bridge
 from lib.Distributor.socket.Interface import SocketInterface
 from lib.Distributor.socket.messages.request import requests_message
-from lib.Logger.logger import Logger
+from lib.Logger.logger import get_logger
 
 
 class SocketClient(SocketInterface):
     def __init__(self):
         self.requests_message = copy.deepcopy(requests_message)
-        self.logger = Logger(self.__class__.__name__)
+        self.logger = get_logger(self.__class__.__name__)
         self.cctx = zstd.ZstdCompressor(level=9)
 
     @staticmethod
@@ -29,23 +29,27 @@ class SocketClient(SocketInterface):
 
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         addr, port = self.resolve_addr()
-        self.logger.log("DEBUG", f"Connecting to {addr}:{port}")
+        self.logger.debug(f"Connecting to {addr}:{port}")
         client_socket.connect((addr, port))
+
         try:
             datagram = self.cctx.compress(json.dumps(self.requests_message).encode())
             datagram = base64.b64encode(datagram) + b"<END>"
-            self.logger.log("DEBUG", f"datagram len : {len(datagram)}")
+            self.logger.debug(f"datagram len : {len(datagram)}")
+
             client_socket.sendall(datagram)
-            self.logger.log("DEBUG", "Datagram sent, waiting for response...")
+            self.logger.debug("Datagram sent, waiting for response...")
+
             data = client_socket.recv(1024)
-            self.logger.log("DEBUG", f"Received data: {data[:100]}...")  # 일부만 출력
+            self.logger.debug(f"Received data: {data[:20]}...")  # 일부만 출력
+
             message = json.loads(data.decode())
-            self.logger.log("DEBUG", f"Decoded message: {message}")
+            self.logger.debug(f"Decoded message: {message[:20]}")
             return message
 
         except Exception as e:
-            self.logger.log("ERROR", f"TCP 요청 중 오류: {e}")
+            self.logger.error(f"TCP 오류: {e}")
             raise
         finally:
             client_socket.close()
-            self.logger.log("DEBUG", "Socket closed")
+            self.logger.debug("Socket closed")

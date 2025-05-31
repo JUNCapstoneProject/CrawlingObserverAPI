@@ -1,9 +1,10 @@
 import json
 import os
-from lib.Logger.logger import Logger  # Logger 클래스 임포트
+from lib.Logger.logger import get_logger
+
 
 # 로거 인스턴스 생성
-logger = Logger("LoadConfig")
+logger = get_logger("LoadConfig")
 
 
 def load_config(filename):

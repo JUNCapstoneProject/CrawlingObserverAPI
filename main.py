@@ -5,14 +5,14 @@ from threading import Thread
 from lib.Crawling import run as run_crawling  # 크롤링 실행 함수
 from lib.Config.config import Config  # 설정 로드
 from lib.Distributor.notifier import run as run_notifier  # notifier
-from lib.Logger.logger import Logger
+from lib.Logger.logger import get_logger
 
 
 def run():
     Config.init()
     threads = []
 
-    logger = Logger("Main")
+    logger = get_logger("Main")
     logger.register_global_hooks()
 
     if Config.get("run_condition.crawler", True):

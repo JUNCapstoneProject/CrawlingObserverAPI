@@ -16,7 +16,7 @@ class CustomLogger(logging.Logger):
         self.backup_count = 24
         self.is_test = Config.get("is_test.toggle", False)
         self.rotation_interval = Config.get("log_rotation", 2)
-        self.include_traceback = Config.get("log_include_traceback", False)
+        self.include_traceback = Config.get("log_include_traceback", True)
 
         self._setup_handlers()
         self._inject_count_filter()
@@ -25,7 +25,7 @@ class CustomLogger(logging.Logger):
         self.handlers.clear()
 
         formatter = logging.Formatter(
-            "[%(asctime)s] [%(levelname)-7s] %(name)-24s - %(funcName)s() - %(message)s",
+            "[%(asctime)s] [%(levelname)-7s] %(name)-18s - %(funcName)s() - %(message)s",
             "%m-%d %H:%M:%S",
         )
 

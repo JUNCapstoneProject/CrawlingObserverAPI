@@ -6,6 +6,8 @@ import pandas as pd
 from lib.Distributor.secretary.session import get_session
 from lib.Distributor.secretary.models.company import Company
 from lib.Distributor.secretary.models.stock import Stock_Market
+from lib.Logger.logger import get_logger
+
 
 MARKET_INDEX_TICKER = {
     "ASE": "^XAX",  # NYSE American (AMEX)
@@ -22,9 +24,10 @@ MARKET_INDEX_TICKER = {
 }
 
 
-class MarketDataManager:
+class YF_Market:
     def __init__(self):
         self.market_map = self._get_market_index_tickers()
+        self.logger = get_logger(self.__class__.__name__)
 
     def _get_market_index_tickers(self) -> dict[str, str]:
         with get_session() as session:
@@ -85,52 +88,64 @@ class MarketDataManager:
         except Exception as e:
             raise RuntimeError(f"데이터 확인 실패: {e}")
 
-    def download_and_save(self, market_code: str, days: int = 30):
-        index_symbol = self.market_map[market_code]  # e.g., NMS → ^IXIC
+    def download_and_save_all(self, market_codes: list[str], days: int = 30):
+        missing_data_codes = set()
 
         try:
-            df = yf.Ticker(index_symbol).history(period=f"{days}d", interval="1d")
+            for market_code in market_codes:
+                index_symbol = self.market_map[market_code]
 
-            if df.empty:
-                return
+                df = yf.Ticker(index_symbol).history(period=f"{days}d", interval="1d")
 
-            df = df.dropna(subset=["Open", "Close", "High", "Low"])
+                if df.empty:
+                    missing_data_codes.add(market_code)
+                    continue
 
-            records = []
-            for dt, row in df.iterrows():
-                records.append(
-                    Stock_Market(
-                        symbol=market_code,  # 지수 심볼이 아닌 market_code 저장
-                        date=dt.to_pydatetime(),
-                        open=round(row["Open"], 2),
-                        close=round(row["Close"], 2),
-                        adj_close=round(row.get("Adj Close", row["Close"]), 2),
-                        high=round(row["High"], 2),
-                        low=round(row["Low"], 2),
-                        volume=(
-                            int(row["Volume"]) if not pd.isna(row["Volume"]) else None
-                        ),
+                df = df.dropna(subset=["Open", "Close", "High", "Low"])
+
+                records = []
+                for dt, row in df.iterrows():
+                    records.append(
+                        Stock_Market(
+                            symbol=market_code,
+                            date=dt.to_pydatetime(),
+                            open=round(row["Open"], 2),
+                            close=round(row["Close"], 2),
+                            adj_close=round(row.get("Adj Close", row["Close"]), 2),
+                            high=round(row["High"], 2),
+                            low=round(row["Low"], 2),
+                            volume=(
+                                int(row["Volume"])
+                                if not pd.isna(row["Volume"])
+                                else None
+                            ),
+                        )
                     )
-                )
 
-            with get_session() as session:
-                session.execute(
-                    delete(Stock_Market).where(Stock_Market.symbol == market_code)
-                )
-                session.bulk_save_objects(records)
-                session.commit()
+                with get_session() as session:
+                    session.execute(
+                        delete(Stock_Market).where(Stock_Market.symbol == market_code)
+                    )
+                    self.logger.debug(
+                        f"{market_code}: 시장 데이터 저장 완료 - {len(records)}건"
+                    )
+                    session.bulk_save_objects(records)
+                    session.commit()
 
         except Exception as e:
-            pass
+            raise RuntimeError(f"{market_code} 처리 중 오류: {e}")
 
-    def update_all(self, days: int = 30):
-        try:
-            targets = self.check_missing_symbols(days)
-        except Exception as e:
-            raise
+        if missing_data_codes:
+            self.logger.warning(
+                f"총 {len(missing_data_codes)}개 시장 데이터 없음:\n"
+                + "\n".join(sorted(missing_data_codes))
+            )
 
-        for symbol in targets:
-            try:
-                self.download_and_save(symbol, days)
-            except Exception as e:
-                pass
+    def crawl(self, days: int = 30):
+        targets = self.check_missing_symbols(days)
+        if not targets:
+            self.logger.debug(f"모든 시장 데이터가 존재함")
+
+        self.logger.debug(f"시장 데이터 캐싱 시작 - {len(targets)}개")
+
+        self.download_and_save_all(targets, days)

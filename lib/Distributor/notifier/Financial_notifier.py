@@ -14,16 +14,14 @@ class FinancialNotifier(NotifierBase):
     def run(self):
         rows = self._fetch_unanalyzed_rows("notifier_financial_vw")
         if not rows:
-            self.logger.log("WAIT", "[Finance] 처리할 재무 데이터 없음")
+            self.logger.info("처리할 재무 데이터 없음")
             return
 
         for row in rows:
             try:
                 item = self._build_item(row)
                 if not item:
-                    self.logger.log(
-                        "DEBUG", f"[Finance] no item in: {row.get('company')}"
-                    )
+                    self.logger.debug(f"no item in: {row.get('company')}")
                     continue
 
                 if self.socket_condition:
@@ -33,13 +31,13 @@ class FinancialNotifier(NotifierBase):
 
                     if status_code != 200:
                         if status_code == 400:
-                            msg = "[Finance] 데이터 입력 오류 (400)"
+                            msg = "데이터 입력 오류 (400)"
                         elif status_code == 500:
-                            msg = "[Finance] 시스템 오류 (500)"
+                            msg = "시스템 오류 (500)"
                         else:
-                            msg = f"[Finance] 알 수 없는 상태 코드({status_code})"
+                            msg = f"알 수 없는 상태 코드({status_code})"
 
-                        self.logger.log("ERROR", f"{msg} → {message}: {row['company']}")
+                        self.logger.error(f"{msg} → {message}: {row['company']}")
                         continue
 
                     analysis = result.get("item", {}).get("result")
@@ -48,20 +46,16 @@ class FinancialNotifier(NotifierBase):
                             row["crawling_id"], analysis, ["financials"]
                         )
                     else:
-                        self.logger.log(
-                            "WARN", f"[Finance] 분석 결과 없음 → {row['crawling_id']}"
-                        )
+                        self.logger.warning(f"분석 결과 없음 → {row['crawling_id']}")
 
                 else:
                     analysis = "notifier 테스트"
                     # self._update_analysis(row["crawling_id"], analysis, ["financials"])
 
             except Exception as e:
-                self.logger.log(
-                    "ERROR", f"[Finance] 예외 발생 → {row.get('crawling_id')}: {e}"
+                self.logger.error(
+                    f"예외 발생 -> {e}: {row.get('company')}, {row.get('crawling_id')}"
                 )
-
-        self.logger.log_summary()
 
     def _build_item(self, row):
         try:
@@ -95,9 +89,7 @@ class FinancialNotifier(NotifierBase):
             return item
 
         except Exception as e:
-            self.logger.log(
-                "ERROR", f"[BuildItem] {e}: company={row.get('company', '?')}"
-            )
+            self.logger.error(f"{e}: company={row.get('company', '?')}")
             return None
 
     def _fetch_recent_quarter_rows(self, company: str) -> list[dict]:
@@ -122,7 +114,7 @@ class FinancialNotifier(NotifierBase):
                 return rows or []
 
         except Exception as e:
-            self.logger.log("ERROR", f"[FetchQuarters] {company}: {e}")
+            self.logger.error(f"{company}: {e}")
             return []
 
     def _build_section_fieldwise_padded(
@@ -177,7 +169,7 @@ class FinancialNotifier(NotifierBase):
                     chart["c"].append(float(r.close) if r.close is not None else None)
 
                 if not found:
-                    self.logger.log("DEBUG", f"[ChartData] no data for {company}")
+                    self.logger.debug(f"no data for {company}")
 
                 # 최신순 정렬이므로 다시 시간순 정렬
                 for key in chart:
@@ -186,7 +178,7 @@ class FinancialNotifier(NotifierBase):
                 return chart
 
         except Exception as e:
-            self.logger.log("ERROR", f"[ChartData] {company}: {e}")
+            self.logger.error(f"{company}: {e}")
             return {"timestamp": [], "o": [], "c": []}
 
     def _update_analysis(
@@ -203,15 +195,11 @@ class FinancialNotifier(NotifierBase):
 
                 if result.rowcount > 0:
                     session.commit()
-                    self.logger.log(
-                        "DEBUG", f"[Update] crawling_id {crawling_id} updated"
-                    )
                 else:
-                    self.logger.log(
-                        "WARN", f"[Update] crawling_id {crawling_id} not found"
-                    )
+                    self.logger.warning(f"crawling_id {crawling_id} not found")
+
         except Exception as e:
-            self.logger.log("ERROR", f"[Update] crawling_id {crawling_id}: {e}")
+            self.logger.error(f"crawling_id {crawling_id}: {e}")
 
     def _bs_map(self) -> dict[str, str]:
         return {

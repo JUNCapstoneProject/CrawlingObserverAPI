@@ -13,7 +13,7 @@ import numpy as np  # 수치 데이터 처리
 # 내부 모듈
 from lib.Crawling.Interfaces.Scheduler import Scheduler  # 스케줄러 클래스
 from lib.Config.config import Config  # 설정 관리 클래스
-from lib.Logger.logger import Logger  # 로깅 클래스
+from lib.Logger.logger import get_logger  # 로깅 클래스
 
 
 class CrawlerInterface(ABC):
@@ -27,7 +27,7 @@ class CrawlerInterface(ABC):
         """크롤러 초기화"""
         self.name = name
         self.scheduler = Scheduler(name)
-        self.logger = Logger(self.__class__.__name__)
+        self.logger = get_logger(self.__class__.__name__)
 
     def run(self):
         """크롤러 실행 루프"""
@@ -43,13 +43,13 @@ class CrawlerInterface(ABC):
 
     def _execute_crawl(self):
         """크롤링 실행 및 결과 처리"""
-        self.logger.log("START", f"[{self.name}] 크롤링 시작")
+        self.logger.info(f"크롤링 시작")
         result = self.crawl()
 
         if result:
             self._process_result(result)
         else:
-            self.logger.log("WARN", f"[{self.name}] 크롤링 결과 없음")
+            self.logger.info(f"크롤링 결과 없음")
 
         self.logger.log_summary()
 
@@ -94,9 +94,9 @@ class CrawlerInterface(ABC):
         try:
             with open(filename, "w", encoding="utf-8") as f:
                 json.dump(result, f, ensure_ascii=False, indent=2, default=str)
-            self.logger.log("FILE", f"[{self.name}] 결과 저장: {filename}")
+            self.logger.info(f"결과 저장 완료: {filename}")
         except Exception as e:
-            self.logger.log("ERROR", f"[{self.name}] 파일 저장 중 예외 발생: {e}")
+            self.logger.error(f"파일 저장 중 예외 발생: {e}")
 
     def save_to_db(self, result):
         """크롤링 결과를 데이터베이스에 저장"""
@@ -107,12 +107,9 @@ class CrawlerInterface(ABC):
 
         try:
             secretary.distribute(result)
-            self.logger.log("DB", f"[{self.name}] DB 저장 완료")
+            self.logger.info(f"DB 저장 완료")
         except SQLAlchemyError as e:
-            self.logger.log(
-                "ERROR", f"[{self.name}] DB 저장 중 SQLAlchemy 예외 발생: {e}"
-            )
-            raise RuntimeError(f"DB 저장 중 SQLAlchemy 예외 발생: {e}") from e
+            self.logger.error(f"DB 저장 중 SQLAlchemy 예외 발생: {e}")
 
     @abstractmethod
     def crawl(self):
