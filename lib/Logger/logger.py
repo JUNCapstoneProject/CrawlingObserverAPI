@@ -5,12 +5,18 @@ import logging
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 from rich.logging import RichHandler
+from rich.console import Console
 from lib.Config.config import Config
 
 
 class CustomLogger(logging.Logger):
+
     def __init__(self, name: str):
         super().__init__(name)
+        log_level_str = Config.get("log_level", "INFO").upper()
+        log_level = getattr(logging, log_level_str, logging.DEBUG)
+        self.setLevel(log_level)
+
         self.error_count = 0
         self.warning_count = 0
         self.backup_count = 24
@@ -22,10 +28,15 @@ class CustomLogger(logging.Logger):
         self._inject_count_filter()
 
     def _setup_handlers(self):
-        self.handlers.clear()
+        for h in self.handlers[:]:  # 안전한 핸들러 제거
+            self.removeHandler(h)
 
         formatter = logging.Formatter(
-            "[%(asctime)s] [%(levelname)-7s] %(name)-18s - %(funcName)s() - %(message)s",
+            "[%(asctime)s] [%(levelname)-7s] %(name)-24s - %(message)s",
+            "%m-%d %H:%M:%S",
+        )
+        console_formatter = logging.Formatter(
+            "%(name)-24s - %(message)s",
             "%m-%d %H:%M:%S",
         )
 
@@ -34,8 +45,8 @@ class CustomLogger(logging.Logger):
 
         # 콘솔 출력 (rich)
         console_handler = RichHandler(markup=True)
-        console_handler.setLevel(logging.DEBUG if self.is_test else logging.INFO)
-        console_handler.setFormatter(formatter)
+        console_handler.setLevel(self.level)
+        console_handler.setFormatter(console_formatter)
         self.addHandler(console_handler)
 
         # 공통 로그 파일 핸들러
@@ -83,21 +94,21 @@ class CustomLogger(logging.Logger):
                 self.warning_count += 1
             return True
 
-        for handler in self.handlers:
-            handler.addFilter(count_filter)
+        self.addFilter(count_filter)
 
     def log_summary(self):
         timestamp = datetime.now().strftime("%m-%d %H:%M:%S")
         msg = f"로그 저장 완료-`logs` WARNING: {self.warning_count}개, ERROR: {self.error_count}개"
 
         if self.error_count > 0:
-            color = "[bold red]"
+            color = "bold red"
         elif self.warning_count > 0:
-            color = "[bold yellow]"
+            color = "bold yellow"
         else:
-            color = "[grey62]"
+            color = "grey62"
 
-        print(f"{color}[{timestamp}] [SUMMARY] {self.name:<24} - {msg}[/]")
+        Console().print(f"[{timestamp}] [SUMMARY] {self.name:<24} - {msg}", style=color)
+
         self.error_count = 0
         self.warning_count = 0
 
@@ -121,8 +132,6 @@ class CustomLogger(logging.Logger):
             threading.excepthook = handle_thread_exception
 
 
-logging.setLoggerClass(CustomLogger)
-
-
 def get_logger(name: str) -> CustomLogger:
-    return logging.getLogger(name)
+    logger = CustomLogger(name)
+    return logger

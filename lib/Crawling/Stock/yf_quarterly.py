@@ -16,13 +16,13 @@ class YF_Quarterly:
     def __init__(self, _company_map):
         self._missing: list[str] = []
         self._company_map = _company_map
-        self.failed_tickers: dict[str, list[str]] = {}
+        self.failed_tickers: dict[str, set[str]] = {}
         self.logger = get_logger("YF_Quarterly")  # Logger 인스턴스 생성
 
     def _add_fail(self, ticker: str, message: str):
-        if ticker not in self.failed_tickers:
-            self.failed_tickers[ticker] = []
-        self.failed_tickers[ticker].append(message)
+        if message not in self.failed_tickers:
+            self.failed_tickers[message] = set()
+        self.failed_tickers[message].add(ticker)
 
     def check_missing(self) -> bool:
         with get_session() as session:
@@ -169,6 +169,37 @@ class YF_Quarterly:
                     if result:
                         records.extend(result)
 
+            # [1] 이미 존재하는 company_id + posted_at 조합 조회
+            with get_session() as session:
+                existing_qs = (
+                    session.query(Stock_Quarterly.company_id, Stock_Quarterly.posted_at)
+                    .filter(
+                        Stock_Quarterly.posted_at.in_([r.posted_at for r in records])
+                    )
+                    .all()
+                )
+                existing_set = set((cid, posted) for cid, posted in existing_qs)
+
+            # [2] 중복 제거 후 records 필터링
+            records = [
+                r for r in records if (r.company_id, r.posted_at) not in existing_set
+            ]
+
+            if self.failed_tickers:
+                total = sum(len(tickers) for tickers in self.failed_tickers.values())
+                self.logger.warning(
+                    f"총 {total}개 분기 데이터 수집 실패:\n"
+                    + "\n".join(
+                        f"{reason}:\n"
+                        + "\n".join(
+                            ", ".join(sorted_tickers[i : i + 10])
+                            for i in range(0, len(sorted_tickers), 10)
+                        )
+                        for reason, tickers in self.failed_tickers.items()
+                        for sorted_tickers in [sorted(tickers)]
+                    )
+                )
+
             try:
                 with get_session() as session:
                     session.bulk_save_objects(records)
@@ -177,15 +208,6 @@ class YF_Quarterly:
 
             except Exception as e:
                 self.logger.error(f"분기 데이터 저장 중 예외 발생: {e}")
-
-            if self.failed_tickers:
-                self.logger.warning(
-                    f"총 {len(self.failed_tickers)}개 분기 데이터 수집 실패:\n"
-                    + "\n".join(
-                        f"{ticker}: {', '.join(reasons)}"
-                        for ticker, reasons in sorted(self.failed_tickers.items())
-                    ),
-                )
 
         except Exception as e:
             raise RuntimeError(f"분기데이터 수집 중 예외 발생: {e}")

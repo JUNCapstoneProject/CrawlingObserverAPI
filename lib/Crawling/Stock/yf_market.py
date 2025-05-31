@@ -90,11 +90,11 @@ class YF_Market:
 
     def download_and_save_all(self, market_codes: list[str], days: int = 30):
         missing_data_codes = set()
+        total_saved = 0  # ← 누적 저장 건수
 
         try:
             for market_code in market_codes:
                 index_symbol = self.market_map[market_code]
-
                 df = yf.Ticker(index_symbol).history(period=f"{days}d", interval="1d")
 
                 if df.empty:
@@ -126,20 +126,24 @@ class YF_Market:
                     session.execute(
                         delete(Stock_Market).where(Stock_Market.symbol == market_code)
                     )
-                    self.logger.debug(
-                        f"{market_code}: 시장 데이터 저장 완료 - {len(records)}건"
-                    )
                     session.bulk_save_objects(records)
                     session.commit()
 
+                total_saved += len(records)  # ← 누적
+
+            if missing_data_codes:
+                self.logger.warning(
+                    f"총 {len(missing_data_codes)}개 시장 데이터 없음:\n"
+                    + "\n".join(
+                        ", ".join(group)
+                        for i in range(0, len(missing_data_codes), 10)
+                        for group in [missing_data_codes[i : i + 10]]
+                    )
+                )
+            self.logger.debug(f"시장 데이터 저장 완료 - 총 {total_saved}건")
+
         except Exception as e:
             raise RuntimeError(f"{market_code} 처리 중 오류: {e}")
-
-        if missing_data_codes:
-            self.logger.warning(
-                f"총 {len(missing_data_codes)}개 시장 데이터 없음:\n"
-                + "\n".join(sorted(missing_data_codes))
-            )
 
     def crawl(self, days: int = 30):
         targets = self.check_missing_symbols(days)

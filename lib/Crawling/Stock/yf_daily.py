@@ -14,8 +14,13 @@ class YF_Daily:
         self.logger = get_logger(self.__class__.__name__)
         self._company_map = _company_map
         self._missing: list[str] = []
-        self._shares_map = self._load_shares_map()
-        self.failed_tickers: dict[str, list[str]] = {}
+        self._shares_map = {}
+        self.failed_tickers: dict[str, set[str]] = {}
+
+    def _add_fail(self, ticker: str, message: str):
+        if message not in self.failed_tickers:
+            self.failed_tickers[message] = set()
+        self.failed_tickers[message].add(ticker)
 
     def _load_shares_map(self) -> dict[str, dict[date, int]]:
         with get_session() as session:
@@ -85,6 +90,7 @@ class YF_Daily:
     def crawl(self):
         try:
             prev_day = self.get_previous_trading_day()
+            self._shares_map = self._load_shares_map()
             if not prev_day:
                 self.logger.warning("기준 거래일 없음")
                 return
@@ -114,7 +120,7 @@ class YF_Daily:
             for ticker in missing:
 
                 if ticker not in df.columns.levels[0]:
-                    self.failed_tickers.setdefault(ticker, []).append("데이터 없음")
+                    self._add_fail(ticker, "데이터 없음")
                     continue
 
                 df_tkr = df[ticker].dropna(subset=["Close", "Open", "High", "Low"])
@@ -122,7 +128,7 @@ class YF_Daily:
 
                 company = self._company_map.get(ticker)
                 if not company:
-                    self.failed_tickers.setdefault(ticker, []).append("회사 정보 없음")
+                    self._add_fail(ticker, "회사 정보 없음")
                     continue
 
                 with get_session() as session:
@@ -142,7 +148,7 @@ class YF_Daily:
 
                     shares = self._get_quarter_shares_for_date(ticker, dt.date())
                     if shares is None:
-                        self.failed_tickers.setdefault(ticker, []).append("shares 없음")
+                        self._add_fail(ticker, "shares 없음")
                         continue
 
                     try:
@@ -164,14 +170,10 @@ class YF_Daily:
                         )
                         records.append(record)
                     except Exception as e_inner:
-                        self.failed_tickers.setdefault(ticker, []).append(
-                            f"{dt.date()} 처리 실패: {e_inner}"
-                        )
+                        self._add_fail(ticker, f"{dt.date()} 처리 실패: {e_inner}")
 
                 if not records:
-                    self.failed_tickers.setdefault(ticker, []).append(
-                        "모든 일간 데이터가 유효하지 않음"
-                    )
+                    self._add_fail(ticker, "모든 일간 데이터가 유효하지 않음")
                     continue
 
                 try:
@@ -180,20 +182,24 @@ class YF_Daily:
                         session.commit()
                     total_saved += len(records)
                 except Exception as e_db:
-                    self.failed_tickers.setdefault(ticker, []).append(
-                        f"분기 데이터 저장 중 예외 발생: {e_db}"
-                    )
-
-            self.logger.debug(f"일간 데이터 저장 완료 - {total_saved} 건")
+                    self.logger.error(f"분기 데이터 저장 중 예외 발생: {e_db}")
 
             if self.failed_tickers:
+                total = sum(len(tickers) for tickers in self.failed_tickers.values())
                 self.logger.warning(
-                    f"총 {len(self.failed_tickers)}개 일간 데이터 수집 실패:\n"
+                    f"총 {total}개 분기 데이터 수집 실패:\n"
                     + "\n".join(
-                        f"{ticker}: {' | '.join(reasons)}"
-                        for ticker, reasons in sorted(self.failed_tickers.items())
+                        f"{reason}:\n"
+                        + "\n".join(
+                            ", ".join(sorted_tickers[i : i + 10])
+                            for i in range(0, len(sorted_tickers), 10)
+                        )
+                        for reason, tickers in self.failed_tickers.items()
+                        for sorted_tickers in [sorted(tickers)]
                     )
                 )
+
+            self.logger.debug(f"일간 데이터 저장 완료 - {total_saved} 건")
 
         except Exception as e:
             raise RuntimeError(f"일간 데이터 수집 중 예외 발생: {e}")

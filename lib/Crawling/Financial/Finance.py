@@ -111,13 +111,13 @@ class YFinancialCrawler(CrawlerInterface):
         if self.missing_stock_symbols:
             self.logger.warning(
                 f"총 {len(self.missing_stock_symbols)}개 종목데이터 없음:\n"
-                + "\n".join(sorted(self.missing_stock_symbols))
+                + format_missing_symbols(self.missing_stock_symbols)
             )
 
         if self.missing_financial_data:
             self.logger.warning(
                 f"총 {len(self.missing_financial_data)}개 분기/연간 재무 데이터 없음:\n"
-                + "\n".join(sorted(self.missing_financial_data))
+                + group_missing_financial_data(self.missing_financial_data)
             )
 
         return results
@@ -250,3 +250,35 @@ class YFinancialCrawler(CrawlerInterface):
                 row[field] = None
 
         return row
+
+
+from collections import defaultdict
+
+
+def format_missing_symbols(symbols: set[str], chunk_size=10) -> str:
+    sorted_list = sorted(symbols)
+    return "\n".join(
+        ", ".join(sorted_list[i : i + chunk_size])
+        for i in range(0, len(sorted_list), chunk_size)
+    )
+
+
+def group_missing_financial_data(missing_data: set[str], chunk_size=10) -> str:
+    grouped = defaultdict(list)
+
+    for item in sorted(missing_data):
+        if "(" in item and ")" in item:
+            symbol, tag = item.rsplit("(", 1)
+            symbol = symbol.strip()
+            tag = tag.strip(")")
+            grouped[tag].append(symbol)
+        else:
+            grouped["unknown"].append(item)
+
+    result_lines = []
+    for tag, symbols in grouped.items():
+        result_lines.append(f"{tag}:")
+        for i in range(0, len(symbols), chunk_size):
+            result_lines.append(", ".join(symbols[i : i + chunk_size]))
+
+    return "\n".join(result_lines)
