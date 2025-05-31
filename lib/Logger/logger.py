@@ -6,6 +6,7 @@ from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 from rich.logging import RichHandler
 from rich.console import Console
+
 from lib.Config.config import Config
 
 
@@ -21,7 +22,7 @@ class CustomLogger(logging.Logger):
         self.warning_count = 0
         self.backup_count = 24
         self.is_test = Config.get("is_test.toggle", False)
-        self.rotation_interval = Config.get("log_rotation", 2)
+        self.rotation_interval = Config.get("log_rotation", 1)
         self.include_traceback = Config.get("log_include_traceback", True)
 
         self._setup_handlers()
@@ -32,11 +33,11 @@ class CustomLogger(logging.Logger):
             self.removeHandler(h)
 
         formatter = logging.Formatter(
-            "[%(asctime)s] [%(levelname)-7s] %(name)-24s - %(message)s",
-            "%m-%d %H:%M:%S",
+            ">>\n[%(filename)s : %(funcName)s() : %(lineno)s]\n[%(asctime)s] [%(levelname)-7s] %(name)-24s - %(message)s\n<<",
+            "%m-%d %H:%M",
         )
         console_formatter = logging.Formatter(
-            "%(name)-24s - %(message)s",
+            "%(name)-24s >> %(message)s",
             "%m-%d %H:%M:%S",
         )
 
@@ -44,7 +45,7 @@ class CustomLogger(logging.Logger):
         os.makedirs(os.path.join("logs", self.name), exist_ok=True)
 
         # 콘솔 출력 (rich)
-        console_handler = RichHandler(markup=True)
+        console_handler = RichHandler(markup=True, show_path=False)
         console_handler.setLevel(self.level)
         console_handler.setFormatter(console_formatter)
         self.addHandler(console_handler)
@@ -107,7 +108,7 @@ class CustomLogger(logging.Logger):
         else:
             color = "grey62"
 
-        Console().print(f"[{timestamp}] [SUMMARY] {self.name:<24} - {msg}", style=color)
+        Console().print(f"[{timestamp}] {self.name:<24} >> {msg}", style=color)
 
         self.error_count = 0
         self.warning_count = 0
