@@ -27,8 +27,8 @@ def load_config(filename):
         with open(config_path, "r", encoding="utf-8") as file:
             return json.load(file)
     except FileNotFoundError as e:
-        logger.log("ERROR", f"Config file not found: {config_path}")
+        logger.error(f"Config file not found: {config_path}")
         raise
     except json.JSONDecodeError as e:
-        logger.log("ERROR", f"Failed to parse JSON file: {config_path}")
+        logger.error(f"Failed to parse JSON file: {config_path}")
         raise

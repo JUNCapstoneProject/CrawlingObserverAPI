@@ -1,108 +1,128 @@
 import os
+import sys
+import threading
+import logging
 from datetime import datetime
+from logging.handlers import TimedRotatingFileHandler
+from rich.logging import RichHandler
 from lib.Config.config import Config
 
-# 로그 색상 매핑
-COLOR_MAP = {
-    "START": "\033[92m",  # 초록
-    "FILE": "\033[96m",  # 밝은 청록
-    "DB": "\033[94m",  # 파랑
-    "WAIT": "\033[90m",  # 회색
-    "WARN": "\033[93m",  # 노랑
-    "ERROR": "\033[91m",  # 빨강
-    "INFO": "\033[97m",  # 흰색
-    "DEBUG": "\033[95m",  # 보라
-    "RESET": "\033[0m",  # 색상 초기화
-}
 
-
-class Logger:
-    """로그 관리 클래스"""
-
-    use_color = Config.get("color_log", True)
-    base_log_dir = os.path.join("logs")
-    os.makedirs(base_log_dir, exist_ok=True)
-
-    error_log_dir = os.path.join(base_log_dir, "errors")
-    os.makedirs(error_log_dir, exist_ok=True)
-
+class CustomLogger(logging.Logger):
     def __init__(self, name: str):
-        """개별 로거 초기화"""
-        self.name = name
-        self.indiv_log_dir = os.path.join(Logger.base_log_dir, name)
-        os.makedirs(self.indiv_log_dir, exist_ok=True)
-
+        super().__init__(name)
         self.error_count = 0
+        self.warning_count = 0
+        self.backup_count = 24
         self.is_test = Config.get("is_test.toggle", False)
+        self.rotation_interval = Config.get("log_rotation", 2)
+        self.include_traceback = Config.get("log_include_traceback", False)
 
-    def _get_log_file_path(self):
-        """현재 시간 기준 파일 경로 생성 (시간 단위 분리)"""
-        rotation_hours = Config.get("log_rotation", 4)
-        now = datetime.now()
-        slot = now.hour // rotation_hours * rotation_hours
-        time_str = now.strftime("%Y%m%d") + f"_{slot:02d}H"
+        self._setup_handlers()
+        self._inject_count_filter()
 
-        log_file = os.path.join(self.indiv_log_dir, f"log_{time_str}.log")
-        common_log_file = os.path.join(
-            Logger.base_log_dir, f"log_common_{time_str}.log"
+    def _setup_handlers(self):
+        self.handlers.clear()
+
+        formatter = logging.Formatter(
+            "[%(asctime)s] [%(levelname)-7s] %(name)-24s - %(funcName)s() - %(message)s",
+            "%m-%d %H:%M:%S",
         )
-        error_log_file = os.path.join(Logger.error_log_dir, f"log_error_{time_str}.log")
 
-        return log_file, common_log_file, error_log_file
+        os.makedirs("logs/errors", exist_ok=True)
+        os.makedirs(os.path.join("logs", self.name), exist_ok=True)
 
-    def log(self, level: str, message: str):
-        """로그 메시지 출력 및 저장"""
-        color = COLOR_MAP.get(level.upper(), "") if Logger.use_color else ""
-        reset = COLOR_MAP["RESET"] if Logger.use_color else ""
-        timestamp = datetime.now().strftime("%m-%d %H:%M:%S")
-        formatted = f"[{timestamp}] [{level:<6}] {self.name:<24} - {message}"
+        # 콘솔 출력 (rich)
+        console_handler = RichHandler(markup=True)
+        console_handler.setLevel(logging.DEBUG if self.is_test else logging.INFO)
+        console_handler.setFormatter(formatter)
+        self.addHandler(console_handler)
 
-        if level.upper() == "ERROR":
-            self._handle_error_log(formatted, color, reset)
-        elif level.upper() == "DEBUG":
-            self._handle_debug_log(formatted, color, reset)
-        else:
-            self._handle_general_log(formatted, color, reset)
+        # 공통 로그 파일 핸들러
+        common_path = os.path.join("logs", "log_common.log")
+        common_handler = TimedRotatingFileHandler(
+            common_path,
+            when="H",
+            interval=self.rotation_interval,
+            backupCount=self.backup_count,
+            encoding="utf-8",
+        )
+        common_handler.setFormatter(formatter)
+        self.addHandler(common_handler)
 
-        self._write_to_file(formatted)
+        # 개별 로그 파일 핸들러
+        indiv_path = os.path.join("logs", self.name, "log_indiv.log")
+        indiv_handler = TimedRotatingFileHandler(
+            indiv_path,
+            when="H",
+            interval=self.rotation_interval,
+            backupCount=self.backup_count,
+            encoding="utf-8",
+        )
+        indiv_handler.setFormatter(formatter)
+        self.addHandler(indiv_handler)
 
-    def _handle_error_log(self, formatted: str, color: str, reset: str):
-        """에러 로그 처리"""
-        self.error_count += 1
-        _, _, error_log_file = self._get_log_file_path()
-        with open(error_log_file, "a", encoding="utf-8") as ef:
-            ef.write(formatted + "\n")
-        if Config.get("print_error_log", True):
-            print(f"{color}{formatted}{reset}")
+        # 에러 로그 파일 핸들러
+        error_path = os.path.join("logs", "errors", "log_error.log")
+        error_handler = TimedRotatingFileHandler(
+            error_path,
+            when="H",
+            interval=self.rotation_interval,
+            backupCount=self.backup_count,
+            encoding="utf-8",
+        )
+        error_handler.setLevel(logging.ERROR)
+        error_handler.setFormatter(formatter)
+        self.addHandler(error_handler)
 
-    def _handle_debug_log(self, formatted: str, color: str, reset: str):
-        """디버그 로그 처리"""
-        if self.is_test:
-            print(f"{color}{formatted}{reset}")
+    def _inject_count_filter(self):
+        def count_filter(record):
+            if record.levelno == logging.ERROR:
+                self.error_count += 1
+            elif record.levelno == logging.WARNING:
+                self.warning_count += 1
+            return True
 
-    def _handle_general_log(self, formatted: str, color: str, reset: str):
-        """일반 로그 처리"""
-        print(f"{color}{formatted}{reset}")
-
-    def _write_to_file(self, formatted: str):
-        """로그 파일 기록 (개별 + 공통)"""
-        log_file, common_log_file, _ = self._get_log_file_path()
-        with open(log_file, "a", encoding="utf-8") as f:
-            f.write(formatted + "\n")
-        with open(common_log_file, "a", encoding="utf-8") as f:
-            f.write(formatted + "\n")
+        for handler in self.handlers:
+            handler.addFilter(count_filter)
 
     def log_summary(self):
-        """에러 카운트 포함 요약 메시지 출력"""
         timestamp = datetime.now().strftime("%m-%d %H:%M:%S")
-        level = "SUMMARY"
-        message = (
-            f"로그 저장 완료-`{Logger.base_log_dir}` ERROR 발생: {self.error_count}개"
-        )
+        msg = f"로그 저장 완료-`logs` WARNING: {self.warning_count}개, ERROR: {self.error_count}개"
 
-        color = COLOR_MAP["ERROR"] if self.error_count > 0 else COLOR_MAP["WAIT"]
-        reset = COLOR_MAP["RESET"] if Logger.use_color else ""
+        if self.error_count > 0:
+            color = "[bold red]"
+        elif self.warning_count > 0:
+            color = "[bold yellow]"
+        else:
+            color = "[grey62]"
 
-        formatted = f"[{timestamp}] [{level:<6}] {self.name:<24} - {message}"
-        print(f"{color}{formatted}{reset}")
+        print(f"{color}[{timestamp}] [SUMMARY] {self.name:<24} - {msg}[/]")
         self.error_count = 0
+        self.warning_count = 0
+
+    def register_global_hooks(self):
+        def handle_exception(exc_type, exc_value, exc_traceback):
+            if issubclass(exc_type, KeyboardInterrupt):
+                sys.__excepthook__(exc_type, exc_value, exc_traceback)
+                return
+            self.error(
+                "Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback)
+            )
+
+        def handle_thread_exception(args):
+            self.error(
+                f"Uncaught thread exception: {args.thread.name}",
+                exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+            )
+
+        sys.excepthook = handle_exception
+        if hasattr(threading, "excepthook"):
+            threading.excepthook = handle_thread_exception
+
+
+logging.setLoggerClass(CustomLogger)
+
+
+def get_logger(name: str) -> CustomLogger:
+    return logging.getLogger(name)
