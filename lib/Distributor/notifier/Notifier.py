@@ -40,7 +40,7 @@ class NotifierBase:
                         finally:
                             notifier.logger.log_summary()
 
-                self.logger.info(f"{self.interval_sec} 이후 재실행")
+                self.logger.info(f"{self.interval_sec}sec 이후 재실행")
                 time.sleep(self.interval_sec)
 
         except KeyboardInterrupt:
