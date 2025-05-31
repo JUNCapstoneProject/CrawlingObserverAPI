@@ -1,13 +1,11 @@
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import yfinance as yf
 
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 from lib.Crawling.config.headers import HEADERS
 from lib.Crawling.Interfaces.Crawler_handlers import EXTRACT_HANDLERS
-from lib.Exceptions.exceptions import *
 from lib.Config.config import Config
 from lib.Crawling.utils.retry import retry_with_exponential_backoff
 
@@ -45,33 +43,6 @@ class CrawlerUsingRequest(CrawlerInterface):
             logger=self.logger,
         )
 
-    # def _seperate_by_ticker(self, result):
-    #     df = result.get("df")
-    #     if df is None or "tag" not in df.columns:
-    #         return result
-
-    #     tags = df.iloc[0]["tag"]
-    #     if not tags or not tags.strip():
-    #         return None
-
-    #     tickers = [t.strip() for t in tags.split(",") if t.strip()]
-    #     separated_results = []
-
-    #     for ticker in tickers:
-    #         try:
-    #             info = yf.Ticker(ticker).info
-    #             if info.get("quoteType") == "INDEX":
-    #                 continue
-    #         except Exception:
-    #             continue
-    #         new_result = result.copy()
-    #         new_df = df.copy()
-    #         new_df.at[0, "tag"] = ticker
-    #         new_result["df"] = new_df
-    #         separated_results.append(new_result)
-
-    #     return separated_results if separated_results else None
-
     def crawl(self):
         results = []
         try:
@@ -80,13 +51,11 @@ class CrawlerUsingRequest(CrawlerInterface):
             target_url = fetch_result["url"]
 
             if not soup:
-                raise ParsingException(
-                    "HTML 파싱 실패 또는 soup None", source=target_url
-                )
+                self.logger.warning("HTML 파싱 실패 또는 soup None")
 
             articles = self.crawl_main(soup)
             if not articles:
-                raise DataNotFoundException("crawl_main 결과 없음", source=target_url)
+                self.logger.warning("크롤링 결과 없음")
 
             for article in articles:
                 href = self.get_absolute_url(article.get("href"))
@@ -105,28 +74,12 @@ class CrawlerUsingRequest(CrawlerInterface):
                 if article.get("content"):
                     result["df"] = pd.DataFrame([article])
                 else:
-                    raise DataNotFoundException("기사 내용 없음", source=href)
+                    self.logger.warning("기사 내용 없음")
 
                 results.append(result)
 
-                # separated = self._seperate_by_ticker(result)
-                # if separated:
-                #     results.extend(separated)
-
             return results
 
-        except CrawlerException as e:
-            return [
-                {
-                    "tag": self.tag,
-                    "log": {
-                        "crawling_type": self.tag,
-                        "status_code": e.status_code,
-                        "target_url": getattr(e, "source", None),
-                    },
-                    "fail_log": {"err_message": str(e)},
-                }
-            ]
         except Exception as e:
             status_code = (
                 getattr(e.response, "status_code", 500)
@@ -138,6 +91,7 @@ class CrawlerUsingRequest(CrawlerInterface):
                 if isinstance(e, requests.HTTPError)
                 else getattr(e, "source", None)
             )
+            self.logger.error(f"{type(e).__name__}: {str(e)}")
 
             return [
                 {

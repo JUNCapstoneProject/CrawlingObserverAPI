@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from datetime import datetime, timedelta, timezone
 
 from lib.Distributor.secretary.session import SessionLocal
-from lib.Logger.logger import Logger
+from lib.Logger.logger import get_logger
 from lib.Distributor.secretary.models.core import CrawlingLog, FailLog
 from lib.Distributor.secretary.handlers import (
     store_news,
@@ -25,7 +25,7 @@ class Secretary:
     def __init__(self):
         self.db = SessionLocal()
         self.handlers = {}
-        self.logger = Logger("Secretary")  # 통합 로그 클래스 적용
+        self.logger = get_logger("Secretary")  # 통합 로그 클래스 적용
         self._auto_register()
 
     def _auto_register(self):
@@ -64,31 +64,28 @@ class Secretary:
                 try:
                     self._distribute_single(r)
                 except Exception as e:
-                    self.logger.log(
-                        "ERROR",
-                        f"다음 데이터 처리 중 예외 발생 → {type(e).__name__}: {e}",
+                    self.logger.error(
+                        f"데이터 처리 중 예외 발생 → {type(e).__name__}: {e}",
                     )
                     continue
         else:
             try:
                 self._distribute_single(result)
             except Exception as e:
-                self.logger.log(
-                    "ERROR", f"단일 데이터 처리 실패 → {type(e).__name__}: {e}"
-                )
+                self.logger.error(f"데이터 처리 중 예외 발생 → {type(e).__name__}: {e}")
 
     def _distribute_single(self, result: dict):
         log = result.get("log", {})
         tag = result.get("tag")
 
         if not tag or tag not in self.handlers:
-            self.logger.log("WARN", f"등록되지 않은 tag: {tag}")
+            self.logger.warning(f"등록되지 않은 tag: {tag}")
             return
 
         df = result.get("df")
         if isinstance(df, pd.DataFrame):
             if df.empty:
-                self.logger.log("WARN", f"{tag}: 빈 DataFrame")
+                self.logger.warning(f"{tag}: 빈 DataFrame")
                 return
             df = df.dropna(how="all").to_dict(orient="records")
 

@@ -2,15 +2,11 @@ import yfinance as yf
 import pandas as pd
 import concurrent.futures
 from typing import List
-from curl_cffi import requests as curl_requests
 
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
-from lib.Exceptions.exceptions import *
 from lib.Config.config import Config
-from lib.Distributor.secretary.models.company import Company
-from lib.Distributor.secretary.session import get_session
-from lib.Logger.logger import Logger
+from lib.Crawling.utils.GetSymbols import get_company_map_from_db
 
 SECTION_FIELDS = {
     "balance_sheet": {
@@ -37,23 +33,17 @@ SECTION_FIELDS = {
 }
 
 
-def get_symbols_from_db(limit: int = None) -> List[str]:
-    with get_session() as session:
-        query = session.query(Company.ticker).order_by(Company.company_id.asc())
-        if limit is not None:
-            query = query.limit(limit)
-        results = query.all()
-        return [ticker[0] for ticker in results]
-
-
-class FinancialCrawler(CrawlerInterface):
+class YFinancialCrawler(CrawlerInterface):
 
     def __init__(self, name):
         super().__init__(name)
         self.batch_size = 100
-        self.symbols = get_symbols_from_db(limit=Config.get("symbol_size.total", 5))
+        self.symbols = list(
+            get_company_map_from_db(limit=Config.get("symbol_size.total", 5)).keys()
+        )
         self.tag = "financials"
-        self.logger = Logger(self.__class__.__name__)
+        self.missing_stock_symbols = set()
+        self.missing_financial_data = set()
 
     def crawl(self):
         results = []
@@ -64,13 +54,11 @@ class FinancialCrawler(CrawlerInterface):
 
             # 배치 인덱스가 10의 배수일 때만 로그 출력
             if batch_idx % 10 == 0:
-                self.logger.log(
-                    "DEBUG",
-                    f"[배치 진행] [{batch_idx}]번째 배치 시작",
-                )
+                self.logger.debug(f"[배치 진행] [{batch_idx}]번째 배치 시작")
 
             try:
                 tickers = yf.Tickers(" ".join(batch))
+
             except Exception as e:
                 for symbol in batch:
                     for tag in ["income_statement", "balance_sheet", "cash_flow"]:
@@ -79,18 +67,14 @@ class FinancialCrawler(CrawlerInterface):
                                 "tag": tag,
                                 "log": {
                                     "crawling_type": self.tag,
-                                    "status_code": ExternalAPIException.status_code,
+                                    "status_code": 500,
                                 },
                                 "fail_log": {
-                                    "err_message": str(
-                                        ExternalAPIException(
-                                            "yf.Tickers 실패", source=symbol
-                                        )
-                                    )
+                                    "err_message": str(f"{symbol} - yf.Tickers 실패")
                                 },
                             }
                         )
-                self.logger.log("ERROR", f"yf.Tickers 실패 (batch={batch}): {str(e)}")
+                self.logger.error(f"yf.Tickers 실패: {str(e)}")
                 continue
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -104,7 +88,7 @@ class FinancialCrawler(CrawlerInterface):
                     try:
                         symbol_results = future.result()
                         results.extend(symbol_results)
-                    except Exception as exc:
+                    except Exception as e:
                         for tag in ["income_statement", "balance_sheet", "cash_flow"]:
                             results.append(
                                 {
@@ -114,21 +98,37 @@ class FinancialCrawler(CrawlerInterface):
                                         "status_code": 500,
                                     },
                                     "fail_log": {
-                                        "err_message": f"{symbol} 병렬 처리 중 오류 발생: {str(exc)}"
+                                        "err_message": f"{symbol} 처리 중 오류 발생: {str(e)}"
                                     },
                                 }
                             )
+                        self.logger.error(f"{symbol} 처리 중 오류 발생: {str(e)}")
 
         for result in results:
             if "log" in result:
                 result["log"]["target_url"] = "yfinance_library"
+
+        if self.missing_stock_symbols:
+            self.logger.warning(
+                f"총 {len(self.missing_stock_symbols)}개 종목데이터 없음:\n"
+                + format_missing_symbols(self.missing_stock_symbols)
+            )
+
+        if self.missing_financial_data:
+            self.logger.warning(
+                f"총 {len(self.missing_financial_data)}개 분기/연간 재무 데이터 없음:\n"
+                + group_missing_financial_data(self.missing_financial_data)
+            )
+
         return results
 
     def fetch_symbol_data(self, symbol: str, tickers) -> List[dict]:
         results = []
-        stock = yf.Ticker(symbol)
+        stock = tickers.tickers.get(symbol)
+
         if not stock:
-            raise DataNotFoundException(f"{symbol}: 종목 데이터 없음", source=symbol)
+            self.missing_stock_symbols.add(symbol)
+            return results  # 이 경우 이후 재무제표 루프 생략
 
         for fin_type, accessors in [
             (
@@ -148,10 +148,11 @@ class FinancialCrawler(CrawlerInterface):
                     if df is not None and not df.empty:
                         df_raw = df
                         break
-                except Exception as e:
-                    continue  # 다음 fallback accessor 시도
+                except Exception:
+                    continue
 
             if df_raw is None or df_raw.empty:
+                self.missing_financial_data.add(f"{symbol} ({fin_type})")
                 results.append(
                     {
                         "tag": fin_type,
@@ -160,9 +161,6 @@ class FinancialCrawler(CrawlerInterface):
                             "err_message": f"{symbol}/{fin_type}: 분기 및 연간 데이터 모두 없음"
                         },
                     }
-                )
-                self.logger.log(
-                    "ERROR", f"{symbol}/{fin_type}: 분기 및 연간 데이터 모두 없음"
                 )
                 continue
 
@@ -190,17 +188,16 @@ class FinancialCrawler(CrawlerInterface):
                         },
                     }
                 )
-                self.logger.log("ERROR", f"{symbol}/{fin_type} 처리 중 오류: {str(e)}")
+                self.logger.error(f"{symbol}/{fin_type} 처리 중 오류: {str(e)}")
 
         return results
 
     def extract_recent_quarters(
         self, df: pd.DataFrame, symbol: str, financial_type: str
     ) -> pd.DataFrame:
+
         if df.empty:
-            raise DataNotFoundException(
-                f"[{financial_type} 원본 데이터가 비어 있음", source=symbol
-            )
+            raise Exception("원본 데이터가 비어 있음")
 
         df = df.T.reset_index().rename(columns={"index": "posted_at"})
         df["Symbol"] = symbol
@@ -253,3 +250,35 @@ class FinancialCrawler(CrawlerInterface):
                 row[field] = None
 
         return row
+
+
+from collections import defaultdict
+
+
+def format_missing_symbols(symbols: set[str], chunk_size=10) -> str:
+    sorted_list = sorted(symbols)
+    return "\n".join(
+        ", ".join(sorted_list[i : i + chunk_size])
+        for i in range(0, len(sorted_list), chunk_size)
+    )
+
+
+def group_missing_financial_data(missing_data: set[str], chunk_size=10) -> str:
+    grouped = defaultdict(list)
+
+    for item in sorted(missing_data):
+        if "(" in item and ")" in item:
+            symbol, tag = item.rsplit("(", 1)
+            symbol = symbol.strip()
+            tag = tag.strip(")")
+            grouped[tag].append(symbol)
+        else:
+            grouped["unknown"].append(item)
+
+    result_lines = []
+    for tag, symbols in grouped.items():
+        result_lines.append(f"{tag}:")
+        for i in range(0, len(symbols), chunk_size):
+            result_lines.append(", ".join(symbols[i : i + chunk_size]))
+
+    return "\n".join(result_lines)

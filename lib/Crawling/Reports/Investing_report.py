@@ -5,7 +5,6 @@ import re
 
 from lib.Crawling.Interfaces.CrawlerUsingRequest import CrawlerUsingRequest
 from lib.Crawling.config.headers import HEADERS
-from lib.Exceptions.exceptions import *
 from lib.Crawling.utils.retry import retry_with_exponential_backoff
 
 

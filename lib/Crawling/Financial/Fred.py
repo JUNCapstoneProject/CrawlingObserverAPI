@@ -2,8 +2,6 @@ from fredapi import Fred
 import pandas as pd
 
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
-from lib.Exceptions.exceptions import *
-from lib.Logger.logger import Logger  # 로깅 클래스
 
 
 class FredCrawler(CrawlerInterface):
@@ -28,7 +26,6 @@ class FredCrawler(CrawlerInterface):
             "Consumer Confidence Index (CCI)": "UMCSENT",
         }
         self.tag = "macro"
-        self.logger = Logger(self.__class__.__name__)
 
     def crawl(self):
         """FRED 데이터를 지표별로 분리하여 최근과 그 전 데이터 각각 반환"""
@@ -39,11 +36,6 @@ class FredCrawler(CrawlerInterface):
                 data_series = self.fred.get_series(series_id)
                 data_series = data_series.dropna().ffill()
                 data_series.index = pd.to_datetime(data_series.index)
-
-                if len(data_series) < 2:
-                    raise DataNotFoundException(
-                        "데이터가 2개 미만입니다.", source=series_id
-                    )
 
                 latest_date = data_series.index[-1]
                 previous_date = data_series.index[-2]
@@ -82,18 +74,6 @@ class FredCrawler(CrawlerInterface):
                     }
                 )
 
-            except CrawlerException as e:
-                results.append(
-                    {
-                        "tag": self.tag,
-                        "log": {
-                            "crawling_type": self.tag,
-                            "status_code": e.status_code,
-                        },
-                        "fail_log": {"index_name": name, "err_message": str(e)},
-                    }
-                )
-
             except Exception as e:
                 results.append(
                     {
@@ -101,10 +81,11 @@ class FredCrawler(CrawlerInterface):
                         "log": {"crawling_type": self.tag, "status_code": 500},
                         "fail_log": {
                             "index_name": name,
-                            "err_message": f"{series_id} - 알 수 없는 오류: {str(e)}",
+                            "err_message": f"{series_id} - {str(e)}",
                         },
                     }
                 )
+                self.logger.error(f"{series_id} - {str(e)}")
 
         for result in results:
             if "log" in result:

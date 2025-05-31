@@ -1,13 +1,13 @@
 from concurrent.futures import ThreadPoolExecutor
 from .Fred import FredCrawler
-from .Finance import FinancialCrawler
+from .Finance import YFinancialCrawler
 from lib.Config.config import Config
 
 
 def run():
 
     # 설정 정보를 매핑하여 관리
-    crawler_configs = {"Fred": FredCrawler, "Finance": FinancialCrawler}
+    crawler_configs = {"Fred": FredCrawler, "Finance": YFinancialCrawler}
 
     # 크롤러 인스턴스 생성 (API 키가 있는 경우에만 전달)
     crawlers = []

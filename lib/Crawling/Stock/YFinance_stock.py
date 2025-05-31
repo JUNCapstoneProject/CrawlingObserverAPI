@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # ─── Built-in Modules ─────────────────────────────────────────────────────
 import time
-from typing import List, Optional, Dict
+from typing import List
 import random
 
 # ─── Third-party Modules ─────────────────────────────────────────────────
@@ -15,33 +15,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # ─── Project-specific Modules ────────────────────────────────────────────
 from lib.Crawling.Interfaces.Crawler import CrawlerInterface
 from lib.Distributor.secretary.models.stock import Stock_Daily
-from lib.Distributor.secretary.models.company import Company
 from lib.Distributor.secretary.session import get_session
-from lib.Exceptions.exceptions import (
-    BatchProcessingException,
-    CrawlerException,
-    DataNotFoundException,
-)
 from lib.Config.config import Config
-from lib.Logger.logger import Logger
 from lib.Crawling.utils.yfhandler import _YFForwardHandler
+from lib.Crawling.utils.GetSymbols import get_company_map_from_db
 
 session = curl_requests.Session(impersonate="chrome")
-
-
-def get_company_map_from_db(limit: Optional[int] = None) -> Dict[str, dict]:
-    with get_session() as session:
-        q = session.query(Company.ticker, Company.company_id, Company.cik).order_by(
-            Company.company_id.asc()
-        )
-        if limit:
-            q = q.limit(limit)
-
-        return {
-            ticker.upper(): {"company_id": company_id, "cik": cik}
-            for ticker, company_id, cik in q.all()
-            if cik
-        }
 
 
 class YFinanceStockCrawler(CrawlerInterface):
@@ -55,7 +34,7 @@ class YFinanceStockCrawler(CrawlerInterface):
         self._company_map = get_company_map_from_db(
             Config.get("symbol_size.total", 6000)
         )
-        self.logger = Logger(self.__class__.__name__)
+        self.failed_tickers: dict[str, str] = {}
 
         # Configure yfinance logger
         yf_logger = logging.getLogger("yfinance")
@@ -64,176 +43,29 @@ class YFinanceStockCrawler(CrawlerInterface):
         yf_logger.addHandler(_YFForwardHandler(self.logger))
         yf_logger.propagate = False
 
+    def _add_fail(self, ticker: str, msg: str):
+        if ticker not in self.failed_tickers:
+            self.failed_tickers[ticker] = []
+        self.failed_tickers[ticker].append(msg)
+
     def _refresh_price_data_cache(self):
         from .yf_quarterly import YF_Quarterly
         from .yf_daily import YF_Daily
-        from .yf_market import MarketDataManager
+        from .yf_market import YF_Market
 
-        self.logger.log("DEBUG", "분기 및 일간 데이터 확인 시작")
+        self.logger.debug("주가 데이터 캐싱 시작")
 
-        try:
-            manager = MarketDataManager()
-            manager.update_all()
-        except Exception as e:
-            self.logger.log("ERROR", f"[MarketDataManager]: {e}")
-
-        try:
-            YF_Quarterly(self._company_map).crawl()
-        except Exception as e:
-            self.logger.log("ERROR", f"[YF_Quarterly]: {e}")
-
-        try:
-            YF_Daily(self._company_map).crawl()
-        except Exception as e:
-            self.logger.log("ERROR", f"[YF_Daily]: {e}")
-
-    def crawl(self):
-        try:
-            self._refresh_price_data_cache()
-            self._adj_map = self.get_adj_close_map()
-        except Exception as e:
-            self.logger.log("ERROR", f"{e}")
-
-        tickers = list(self._company_map.keys())
-        if not tickers:
-            return None
-
-        batches = [
-            tickers[i : i + self.batch_size]
-            for i in range(0, len(tickers), self.batch_size)
-        ]
-        results = []
-
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            future_to_batch = {
-                executor.submit(self._crawl_batch, batch): batch
-                for i, batch in enumerate(batches)
-            }
-
-            for future in as_completed(future_to_batch):
-                batch = future_to_batch[future]
-                try:
-                    results.extend(future.result())
-                except BatchProcessingException as e:
-                    for sym in batch:
-                        results.append(
-                            {
-                                "tag": self.tag,
-                                "log": {
-                                    "crawling_type": self.tag,
-                                    "status_code": e.status_code,
-                                },
-                                "fail_log": {"err_message": str(e)},
-                            }
-                        )
-                except Exception as e:
-                    for sym in batch:
-                        results.append(
-                            {
-                                "tag": self.tag,
-                                "log": {"crawling_type": self.tag, "status_code": 500},
-                                "fail_log": {"err_message": f"Batch error: {e}"},
-                            }
-                        )
-
-        for result in results:
-            if "log" in result:
-                result["log"]["target_url"] = "yfinance_library"
-        return results
-
-    def _crawl_batch(self, batch: List[str]):
-        batch_results = []
-
-        for ticker in batch:
-            try:
-                company = self._company_map.get(ticker)
-                if not company:
-                    raise DataNotFoundException("company_map 누락", source=ticker)
-
-                company_id = company["company_id"]
-                stock = yf.Ticker(ticker, session=session)
-
-                df_min = self._process_minute_data(stock, ticker, company_id)
-
-                batch_results.append(
-                    {
-                        "tag": self.tag,
-                        "log": {"crawling_type": self.tag, "status_code": 200},
-                        "df": df_min,
-                    }
-                )
-
-            except CrawlerException as e:
-                batch_results.append(
-                    {
-                        "tag": self.tag,
-                        "log": {
-                            "crawling_type": self.tag,
-                            "status_code": e.status_code,
-                        },
-                        "fail_log": {"err_message": str(e)},
-                    }
-                )
-            except Exception as e:
-                batch_results.append(
-                    {
-                        "tag": self.tag,
-                        "log": {"crawling_type": self.tag, "status_code": 500},
-                        "fail_log": {"err_message": f"{ticker}: {str(e)}"},
-                    }
-                )
-
-            time.sleep(random.uniform(0.1, 0.4))
-
-        return batch_results
-
-    def _process_minute_data(self, stock, ticker, company_id) -> pd.DataFrame:
-        """Processes minute-level stock data with company_id, full-day volume, and change."""
-        df_min = stock.history(period="1d", interval="1m", prepost=True)[
-            ["Open", "High", "Low", "Close", "Volume"]
+        crawlers = [
+            YF_Market(),
+            YF_Quarterly(self._company_map),
+            YF_Daily(self._company_map),
         ]
 
-        if df_min.empty:
-            raise DataNotFoundException(
-                "Empty DataFrame (No trading data)", source=ticker
-            )
+        for crawler in crawlers:
+            crawler.crawl()
+            crawler.logger.log_summary()
 
-        # ✅ 하루 누적 거래량
-        volume_sum = int(df_min["Volume"].sum())
-
-        # ✅ 가장 마지막 시점의 OHLC만 사용
-        latest = df_min.tail(1).reset_index()
-        latest.rename(columns={"Datetime": "posted_at"}, inplace=True)
-
-        # ✅ 회사 ID 포함
-        latest["company_id"] = company_id
-
-        # ✅ Change 계산
-        adj_close = self._adj_map.get(company_id)
-        latest["Change"] = 0.0
-        if adj_close and not latest["Close"].isna().all():
-            try:
-                latest["Change"] = round(
-                    (latest["Close"].iloc[0] / adj_close - 1) * 100, 2
-                )
-            except ZeroDivisionError:
-                latest["Change"] = 0.0
-
-        # ✅ 누적 Volume 반영
-        latest["Volume"] = volume_sum
-
-        return latest[
-            [
-                "company_id",
-                "posted_at",
-                "Open",
-                "High",
-                "Low",
-                "Close",
-                "Volume",
-                "Change",
-            ]
-        ]
+        self.logger.debug("주가 데이터 캐싱 완료")
 
     def get_adj_close_map(self) -> dict[int, float]:
         from sqlalchemy import func, and_
@@ -272,3 +104,141 @@ class YFinanceStockCrawler(CrawlerInterface):
                 for company_id, adj_close in rows
                 if adj_close is not None
             }
+
+    def crawl(self):
+        try:
+            self._refresh_price_data_cache()
+            self._adj_map = self.get_adj_close_map()
+
+            tickers = list(self._company_map.keys())
+            if not tickers:
+                self.logger.warning("ticker 목록 없음")
+                return None
+
+            batches = [
+                tickers[i : i + self.batch_size]
+                for i in range(0, len(tickers), self.batch_size)
+            ]
+            results = []
+
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                future_to_batch = {
+                    executor.submit(self._crawl_batch, batch): batch
+                    for _, batch in enumerate(batches)
+                }
+
+                for future in as_completed(future_to_batch):
+                    batch = future_to_batch[future]
+
+                    try:
+                        results.extend(future.result())
+
+                    except Exception as e:
+                        for sym in batch:
+                            results.append(
+                                {
+                                    "tag": self.tag,
+                                    "log": {
+                                        "crawling_type": self.tag,
+                                        "status_code": 500,
+                                    },
+                                    "fail_log": {"err_message": f"Batch error: {e}"},
+                                }
+                            )
+
+            for result in results:
+                if "log" in result:
+                    result["log"]["target_url"] = "yfinance_library"
+
+            if self.failed_tickers:
+                self.logger.warning(
+                    f"총 {len(self.failed_tickers)}개 주가 데이터 수집 실패:\n"
+                    + "\n".join(
+                        f"{ticker}: {', '.join(reasons)}"
+                        for ticker, reasons in sorted(self.failed_tickers.items())
+                    )
+                )
+
+            return results
+
+        except Exception as e:
+            self.logger.error(f"{e}")
+
+    def _crawl_batch(self, batch: List[str]):
+        batch_results = []
+
+        for ticker in batch:
+            try:
+                company = self._company_map.get(ticker)
+                if not company:
+                    self._add_fail(ticker, "company 정보 없음")
+                    continue
+
+                company_id = company["company_id"]
+                stock = yf.Ticker(ticker, session=session)
+
+                df_min = self._process_minute_data(stock, ticker, company_id)
+
+                batch_results.append(
+                    {
+                        "tag": self.tag,
+                        "log": {"crawling_type": self.tag, "status_code": 200},
+                        "df": df_min,
+                    }
+                )
+
+            except Exception as e:
+                batch_results.append(
+                    {
+                        "tag": self.tag,
+                        "log": {"crawling_type": self.tag, "status_code": 500},
+                        "fail_log": {"err_message": f"{ticker}: {str(e)}"},
+                    }
+                )
+                self._add_fail(ticker, str(e))
+
+            time.sleep(random.uniform(0.1, 0.4))
+
+        return batch_results
+
+    def _process_minute_data(self, stock, ticker, company_id) -> pd.DataFrame:
+        """Processes minute-level stock data with company_id, full-day volume, and change."""
+        df_min = stock.history(period="1d", interval="1m", prepost=True)[
+            ["Open", "High", "Low", "Close", "Volume"]
+        ]
+
+        if df_min.empty:
+            self._add_fail(ticker, "1분 데이터 없음")
+            return
+
+        volume_sum = int(df_min["Volume"].sum())
+
+        latest = df_min.tail(1).reset_index()
+        latest.rename(columns={"Datetime": "posted_at"}, inplace=True)
+
+        latest["company_id"] = company_id
+
+        adj_close = self._adj_map.get(company_id)
+        latest["Change"] = 0.0
+        if adj_close and not latest["Close"].isna().all():
+            try:
+                latest["Change"] = round(
+                    (latest["Close"].iloc[0] / adj_close - 1) * 100, 2
+                )
+            except ZeroDivisionError:
+                latest["Change"] = 0.0
+
+        latest["Volume"] = volume_sum
+
+        return latest[
+            [
+                "company_id",
+                "posted_at",
+                "Open",
+                "High",
+                "Low",
+                "Close",
+                "Volume",
+                "Change",
+            ]
+        ]

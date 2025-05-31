@@ -5,7 +5,6 @@ import re
 
 from lib.Crawling.Interfaces.CrawlerUsingRequest import CrawlerUsingRequest
 from lib.Crawling.config.headers import HEADERS
-from lib.Exceptions.exceptions import *
 from lib.Crawling.utils.retry import retry_with_exponential_backoff
 
 
@@ -41,7 +40,7 @@ class InvestingNewsCrawler(CrawlerUsingRequest):
             _fetch,
             max_retries=max_retries,
             base_delay=0.1,
-            max_delay=5.0,
+            max_delay=3.0,
             class_name=self.__class__.__name__,
             logger=self.logger,
         )

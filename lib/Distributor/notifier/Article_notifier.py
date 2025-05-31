@@ -16,14 +16,14 @@ class ArticleNotifier(NotifierBase):
     def run(self):
         rows = self._fetch_unanalyzed_rows("notifier_articles_vw")
         if not rows:
-            self.logger.log("WAIT", "[Article] 처리할 뉴스 없음")
+            self.logger.info("처리할 뉴스 없음")
             return
 
         for row in rows:
             try:
                 item = self._build_item(row)
                 if not item:
-                    self.logger.log("DEBUG", f"[Article] no item in: {row.get('tag')}")
+                    self.logger.debug(f"no item in: {row.get('tag')}")
                     continue
 
                 if self.socket_condition:
@@ -33,18 +33,14 @@ class ArticleNotifier(NotifierBase):
                     message = result.get("message")
 
                     if status_code != 200:
-                        log_level = "ERROR"
                         if status_code == 400:
-                            msg = f"[Article] 데이터 입력 오류 (400)"
+                            msg = f"데이터 입력 오류 (400)"
                         elif status_code == 500:
-                            msg = f"[Article] 시스템 오류 (500)"
+                            msg = f"시스템 오류 (500)"
                         else:
-                            msg = f"[Article] 알 수 없는 상태 코드({status_code})"
+                            msg = f"알 수 없는 상태 코드({status_code})"
 
-                        self.logger.log(
-                            log_level,
-                            f"{msg} → {message}: {row['tag']}",
-                        )
+                        self.logger.error(f"{msg} → {message}: {row['tag']}")
                         continue  # 에러일 경우 이후 로직 실행하지 않음
 
                     # 성공(200)일 때만 분석 결과 확인
@@ -52,39 +48,28 @@ class ArticleNotifier(NotifierBase):
                     if analysis:
                         self._update_analysis(row["tag_id"], analysis, row["source"])
                     else:
-                        self.logger.log(
-                            "WARN",
-                            f"[Article] 분석 결과 없음 → {row['crawling_id']}",
-                        )
+                        self.logger.warning(f"분석 결과 없음 → {row['crawling_id']}")
 
                 else:
                     analysis = "notifier 테스트"
                     # self._update_analysis(row["tag_id"], analysis, row["source"])
 
             except Exception as e:
-                self.logger.log(
-                    "ERROR",
-                    f"[Article] 예외 발생 → {e}: {row.get('tag')}, {row.get('crawling_id')}",
+                self.logger.error(
+                    f"예외 발생 → {e}: {row.get('tag')}, {row.get('crawling_id')}"
                 )
-
-        self.logger.log_summary()
 
     def _build_item(self, row):
         try:
             item = copy.deepcopy(news_item)
             tag = row.get("tag")
             if not tag:
-                self.logger.log(
-                    "WARN", f"[BuildItem] tag missing for {row.get('crawling_id')}"
-                )
+                self.logger.warning(f"tag missing for {row.get('crawling_id')}")
                 return None
 
             content = row.get("content") or ""
             if not content.strip():
-                self.logger.log(
-                    "WARN",
-                    f"[BuildItem] content empty for {row.get('crawling_id')}",
-                )
+                self.logger.warning(f"content empty for {row.get('crawling_id')}")
                 return None
 
             stock_history = self._get_stock_history(tag)
@@ -92,7 +77,6 @@ class ArticleNotifier(NotifierBase):
             income_statement = self._get_income_statement(tag)
             info = self._get_info(tag)
 
-            # ✅ 모든 항목이 비어 있으면 중단
             if (
                 not any(stock_history.values())
                 or not any(market_history.values())
@@ -110,8 +94,9 @@ class ArticleNotifier(NotifierBase):
             return item
 
         except Exception as e:
-            self.logger.log("ERROR", f"[BuildItem] {row.get('crawling_id')}: {e}")
-            return None
+            self.logger.error(
+                f"예외 발생 → {e}: {row.get('tag')}, {row.get('crawling_id')}"
+            )
 
     def _get_stock_history(self, tag: str) -> dict:
         try:
@@ -158,12 +143,12 @@ class ArticleNotifier(NotifierBase):
                     )
 
                 if not found:
-                    self.logger.log("DEBUG", f"[StockHistory] no data for {tag}")
+                    self.logger.debug(f"no data for {tag}")
 
                 return result
 
         except Exception as e:
-            self.logger.log("ERROR", f"[StockHistory] {tag}: {e}")
+            self.logger.error(f"예외 발생 {tag}: {e}")
             return {
                 k: []
                 for k in [
@@ -181,13 +166,11 @@ class ArticleNotifier(NotifierBase):
     def _get_market_history(self, ticker: str) -> dict:
         try:
             # ✅ yfinance로 지수 심볼 추출 (백오프 포함)
-            ticker_obj = self.yf_with_backoff(ticker, "MarketHistory")
+            ticker_obj = self.yf_with_backoff(ticker)
             exchange = ticker_obj.info.get("exchange", "").upper()
 
             if not exchange:
-                self.logger.log(
-                    "WARN", f"[MarketHistory] Index symbol not found for {ticker}"
-                )
+                self.logger.warning(f"Index symbol not found for {ticker}")
                 return {
                     k: []
                     for k in [
@@ -235,12 +218,12 @@ class ArticleNotifier(NotifierBase):
                     result["Volume"].append(float(r.get("volume") or 0))
 
                 if not found:
-                    self.logger.log("DEBUG", f"[MarketHistory] no data for {exchange}")
+                    self.logger.debug(f"no data for {exchange}")
 
                 return result
 
         except Exception as e:
-            self.logger.log("ERROR", f"[MarketHistory] {ticker}: {e}")
+            self.logger.error(f"예외 발생 {ticker}: {e}")
             return {
                 k: []
                 for k in ["Date", "Open", "Close", "Adj Close", "High", "Low", "Volume"]
@@ -265,7 +248,7 @@ class ArticleNotifier(NotifierBase):
                     .first()
                 )
                 if not row:
-                    self.logger.log("DEBUG", f"[IncomeStatement] no row for {tag}")
+                    self.logger.debug(f"no row for {tag}")
                     return {}
                 return {
                     "Total Revenue": [
@@ -284,12 +267,10 @@ class ArticleNotifier(NotifierBase):
                     ],
                 }
         except Exception as e:
-            self.logger.log("ERROR", f"[IncomeStatement] {tag}: {e}")
+            self.logger.error(f"예외 발생 {tag}: {e}")
             return {}
 
-    def yf_with_backoff(
-        self, ticker_str: str, purpose: str, max_retries: int = 4
-    ) -> yf.Ticker:
+    def yf_with_backoff(self, ticker_str: str, max_retries: int = 4) -> yf.Ticker:
         """
         yfinance Ticker 객체 반환. 401 Unauthorized 발생 시 백오프 재시도
         :param self: 로거가 포함된 클래스 인스턴스
@@ -309,24 +290,20 @@ class ArticleNotifier(NotifierBase):
             except Exception as e:
                 if "401" in str(e):
                     wait = 5 + retry * 5
-                    self.logger.log(
-                        "ERROR",
-                        f"[{purpose}] 401 Unauthorized for {ticker_str} → {wait}s 대기 (재시도 {retry})",
-                    )
                     time.sleep(wait)
                 else:
                     raise
-        raise RuntimeError(f"[{purpose}] {ticker_str} 요청 실패 (최대 재시도 초과)")
+        raise RuntimeError(f"{ticker_str} 요청 실패 (최대 재시도 초과)")
 
     def _get_info(self, tag: str) -> dict:
         try:
-            ticker_obj = self.yf_with_backoff(tag, "PriceToBook")
+            ticker_obj = self.yf_with_backoff(tag)
             ptb = ticker_obj.info.get("priceToBook")
             if ptb is None:
-                self.logger.log("DEBUG", f"[PriceToBook] no priceToBook for {tag}")
+                self.logger.debug(f"no priceToBook for {tag}")
             return {"priceToBook": [ptb] if ptb is not None else []}
         except Exception as e:
-            self.logger.log("ERROR", f"[PriceToBook] {tag}: {e}")
+            self.logger.error(f"에러 발생 {tag}: {e}")
             return {"priceToBook": []}
 
     def _update_analysis(self, tag_id: str, analysis: str, source: str) -> None:
@@ -337,7 +314,7 @@ class ArticleNotifier(NotifierBase):
 
         model = model_map.get(source)
         if not model:
-            self.logger.log("ERROR", f"[Update] unknown source: {source}")
+            self.logger.error(f"unknown source: {source}")
             return
 
         try:
@@ -348,14 +325,10 @@ class ArticleNotifier(NotifierBase):
                     .values(ai_analysis=analysis)
                 )
                 result = session.execute(stmt)
+
                 if result.rowcount > 0:
                     session.commit()
-                    self.logger.log(
-                        "DEBUG", f"[Update] tag_id {tag_id} updated in {source}"
-                    )
                 else:
-                    self.logger.log(
-                        "WARN", f"[Update] tag_id {tag_id} not matched in {source}"
-                    )
+                    self.logger.warning(f"{tag_id} not matched in {source}")
         except Exception as e:
-            self.logger.log("ERROR", f"[Update] tag_id {tag_id}: {e}")
+            self.logger.error(f"{tag_id}: {e}")
