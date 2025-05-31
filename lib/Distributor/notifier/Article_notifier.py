@@ -131,7 +131,11 @@ class ArticleNotifier(NotifierBase):
                 found = False
                 for r in rows:
                     found = True
-                    result["Date"].append(str(r._mapping.get("posted_at")))
+                    result["Date"].append(
+                        r._mapping.get("posted_at").strftime("%Y-%m-%d")
+                        if r._mapping.get("posted_at")
+                        else ""
+                    )
                     result["Open"].append(float(r._mapping.get("open") or 0))
                     result["Close"].append(float(r._mapping.get("close") or 0))
                     result["Adj Close"].append(float(r._mapping.get("adj_close") or 0))
@@ -209,7 +213,9 @@ class ArticleNotifier(NotifierBase):
                 for r in rows:
                     found = True
                     r = r._mapping
-                    result["Date"].append(str(r.get("date")))
+                    result["Date"].append(
+                        r.get("date").strftime("%Y-%m-%d") if r.get("date") else ""
+                    )
                     result["Open"].append(float(r.get("open") or 0))
                     result["Close"].append(float(r.get("close") or 0))
                     result["Adj Close"].append(float(r.get("adj_close") or 0))

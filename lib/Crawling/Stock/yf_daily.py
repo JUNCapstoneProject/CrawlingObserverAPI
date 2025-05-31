@@ -131,21 +131,8 @@ class YF_Daily:
                     self._add_fail(ticker, "회사 정보 없음")
                     continue
 
-                with get_session() as session:
-                    date_list = [d.date() for d in df_tkr.index]
-                    existing_dates = set(
-                        r[0]
-                        for r in session.query(Stock_Daily.posted_at).filter(
-                            Stock_Daily.company_id == company["company_id"],
-                            Stock_Daily.posted_at.in_(date_list),
-                        )
-                    )
-
                 records = []
                 for dt, row in df_tkr.iterrows():
-                    if dt.date() in existing_dates:
-                        continue
-
                     shares = self._get_quarter_shares_for_date(ticker, dt.date())
                     if shares is None:
                         self._add_fail(ticker, "shares 없음")
@@ -176,13 +163,25 @@ class YF_Daily:
                     self._add_fail(ticker, "모든 일간 데이터가 유효하지 않음")
                     continue
 
+                # 중복 날짜 제거
+                with get_session() as session:
+                    posted_dates = {
+                        r[0]
+                        for r in session.query(Stock_Daily.posted_at).filter(
+                            Stock_Daily.company_id == company["company_id"],
+                            Stock_Daily.posted_at.in_([r.posted_at for r in records]),
+                        )
+                    }
+
+                records = [r for r in records if r.posted_at not in posted_dates]
+
                 try:
                     with get_session() as session:
                         session.bulk_save_objects(records)
                         session.commit()
                     total_saved += len(records)
                 except Exception as e_db:
-                    self.logger.error(f"분기 데이터 저장 중 예외 발생: {e_db}")
+                    self.logger.error(f"일간 데이터 저장 중 예외 발생: {e_db}")
 
             if self.failed_tickers:
                 total = sum(len(tickers) for tickers in self.failed_tickers.values())
