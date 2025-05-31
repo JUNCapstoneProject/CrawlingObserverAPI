@@ -19,10 +19,6 @@ save_method:
 database:
   url: mysql+pymysql://username:password@databaseURL/your_database
 
-# 로깅 설정
-color_log: true
-print_error_log: false
-
 # 테스트 모드 설정
 is_test:
   toggle: true
