@@ -1,3 +1,4 @@
+import json
 import copy
 from sqlalchemy import text, update
 
@@ -25,6 +26,9 @@ class FinancialNotifier(NotifierBase):
                 requests_message = copy.deepcopy(finance_requests_message)
                 item = self._build_item(row)
                 requests_message["body"]["item"] = item
+
+                with open("temp_request_message.json", "w", encoding="utf-8") as f:
+                    json.dump(requests_message, f, ensure_ascii=False, indent=4)
 
                 if not item:
                     self.logger.debug(f"no item in: {row.get('ticker')}")
@@ -142,8 +146,8 @@ class FinancialNotifier(NotifierBase):
                 if len(values) == 4:
                     break
 
-            padded = [None] * (4 - len(values)) + values
-            section[req_key] = padded
+            if len(values) == 4:
+                section[req_key] = values
 
         return section
 
