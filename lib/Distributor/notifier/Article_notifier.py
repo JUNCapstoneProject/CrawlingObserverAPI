@@ -320,13 +320,13 @@ class ArticleNotifier(NotifierBase):
             self.logger.error(f"에러 발생 {ticker}: {e}")
             return {"priceToBook": []}
 
-    def _update_analysis(self, tag_id: str, analysis: str) -> None:
+    def _update_analysis(self, crawling_id: str, analysis: str) -> None:
 
         try:
             with get_session() as session:
                 stmt = (
                     update(NewsTag)
-                    .where(NewsTag.tag_id == tag_id)
+                    .where(NewsTag.crawling_id == crawling_id)
                     .values(ai_analysis=analysis)
                 )
                 result = session.execute(stmt)
@@ -334,7 +334,7 @@ class ArticleNotifier(NotifierBase):
                 if result.rowcount > 0:
                     session.commit()
                 else:
-                    self.logger.warning(f"{tag_id} not matched in NewsTag")
+                    self.logger.warning(f"{crawling_id} not matched in NewsTag")
 
         except Exception as e:
-            self.logger.error(f"{tag_id}: {e}")
+            self.logger.error(f"{crawling_id}: {e}")
