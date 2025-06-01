@@ -38,32 +38,15 @@ class SocketClient(SocketInterface):
             client_socket.sendall(datagram)
             self.logger.debug("Datagram sent, waiting for response...")
 
-            # 2. 응답 수신 (반복하여 <END>까지 수신)
-            buffer = b""
-            while True:
-                chunk = client_socket.recv(1024)
-                if not chunk:
-                    break
-                buffer += chunk
-                if b"<END>" in buffer:
-                    buffer = buffer.replace(b"<END>", b"")
-                    break
-
-            if not buffer:
+            # 2. 응답 수신 (한 번에 수신, 최대 4096 바이트까지)
+            data = client_socket.recv(4096)
+            if not data:
                 raise ValueError("서버에서 응답이 없습니다 (빈 응답)")
 
-            try:
-                message_str = buffer.decode(errors="replace").strip()
-                self.logger.debug("Received response successfully.")
-                message = json.loads(message_str)
-                return message
-
-            except json.JSONDecodeError as je:
-                preview = buffer[:100] if len(buffer) >= 100 else buffer
-                self.logger.error(
-                    f"JSON 파싱 실패: {je} → 수신 데이터 일부: {preview!r}"
-                )
-                raise ValueError("유효하지 않은 JSON 응답입니다.")
+            message_str = data.decode(errors="replace").strip()
+            self.logger.debug("Received response successfully.")
+            message = json.loads(message_str)
+            return message
 
         except Exception as e:
             self.logger.error(f"TCP 오류: {e}")
