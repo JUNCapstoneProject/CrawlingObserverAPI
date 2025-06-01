@@ -4,6 +4,7 @@ import yfinance as yf
 import pandas as pd
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from sqlalchemy.dialects.mysql import insert
 
 from lib.Distributor.secretary.session import get_session
 from lib.Distributor.secretary.models.company import Company
@@ -169,40 +170,28 @@ class YF_Quarterly:
                     if result:
                         records.extend(result)
 
-            # [1] 이미 존재하는 company_id + posted_at 조합 조회
-            with get_session() as session:
-                existing_qs = (
-                    session.query(Stock_Quarterly.company_id, Stock_Quarterly.posted_at)
-                    .filter(
-                        Stock_Quarterly.posted_at.in_([r.posted_at for r in records])
-                    )
-                    .all()
-                )
-                existing_set = set((cid, posted) for cid, posted in existing_qs)
-
-            # [2] 중복 제거 후 records 필터링
-            records = [
-                r for r in records if (r.company_id, r.posted_at) not in existing_set
-            ]
-
-            if self.failed_tickers:
-                total = sum(len(tickers) for tickers in self.failed_tickers.values())
-                self.logger.warning(
-                    f"총 {total}개 분기 데이터 수집 실패:\n"
-                    + "\n".join(
-                        f"{reason}:\n"
-                        + "\n".join(
-                            ", ".join(sorted_tickers[i : i + 10])
-                            for i in range(0, len(sorted_tickers), 10)
-                        )
-                        for reason, tickers in self.failed_tickers.items()
-                        for sorted_tickers in [sorted(tickers)]
-                    )
-                )
-
             try:
                 with get_session() as session:
-                    session.bulk_save_objects(records)
+                    for r in records:
+                        stmt = (
+                            insert(Stock_Quarterly)
+                            .values(
+                                company_id=r.company_id,
+                                shares=r.shares,
+                                eps=r.eps,
+                                per=r.per,
+                                dividend_yield=r.dividend_yield,
+                                posted_at=r.posted_at,
+                            )
+                            .on_duplicate_key_update(
+                                shares=stmt.inserted.shares,
+                                eps=stmt.inserted.eps,
+                                per=stmt.inserted.per,
+                                dividend_yield=stmt.inserted.dividend_yield,
+                            )
+                        )
+                        session.execute(stmt)
+
                     session.commit()
                 self.logger.debug(f"분기 데이터 저장 완료 - {len(records)}건")
 

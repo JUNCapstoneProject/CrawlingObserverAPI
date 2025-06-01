@@ -1,5 +1,6 @@
 from datetime import date
 from sqlalchemy import func
+from sqlalchemy.dialects.mysql import insert
 import yfinance as yf
 import pandas as pd
 
@@ -161,25 +162,38 @@ class YF_Daily:
                 self.logger.warning("저장할 데이터 없음")
                 return
 
-            # 중복 제거 (company_id + posted_at 기준)
-            with get_session() as session:
-                existing = set(
-                    session.query(Stock_Daily.company_id, Stock_Daily.posted_at)
-                    .filter(
-                        Stock_Daily.posted_at.in_([r.posted_at for r in all_records])
-                    )
-                    .all()
-                )
-
-            filtered_records = [
-                r for r in all_records if (r.company_id, r.posted_at) not in existing
-            ]
-
             try:
                 with get_session() as session:
-                    session.bulk_save_objects(filtered_records)
+                    for r in all_records:
+                        stmt = (
+                            insert(Stock_Daily)
+                            .values(
+                                company_id=r.company_id,
+                                open=r.open,
+                                close=r.close,
+                                adj_close=r.adj_close,
+                                high=r.high,
+                                low=r.low,
+                                volume=r.volume,
+                                market_cap=r.market_cap,
+                                posted_at=r.posted_at,
+                            )
+                            .on_duplicate_key_update(
+                                open=stmt.inserted.open,
+                                close=stmt.inserted.close,
+                                adj_close=stmt.inserted.adj_close,
+                                high=stmt.inserted.high,
+                                low=stmt.inserted.low,
+                                volume=stmt.inserted.volume,
+                                market_cap=stmt.inserted.market_cap,
+                            )
+                        )
+
+                        session.execute(stmt)
+
                     session.commit()
-                self.logger.debug(f"일간 데이터 저장 완료 - {len(filtered_records)} 건")
+                self.logger.debug(f"일간 데이터 저장 완료 - {len(all_records)} 건")
+
             except Exception as e_db:
                 self.logger.error(f"일간 데이터 저장 중 예외 발생: {e_db}")
 
