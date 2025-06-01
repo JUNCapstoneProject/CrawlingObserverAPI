@@ -176,13 +176,32 @@ class YF_Quarterly:
 
             try:
                 with get_session() as session:
-                    # 테이블 전체 비우기
-                    session.execute(text("TRUNCATE TABLE stock_quarterly"))
+                    # 1. 기존 존재하는 (company_id, posted_at) 조회
+                    existing_keys = session.execute(
+                        text(
+                            """
+                            SELECT company_id, posted_at
+                            FROM stock_quarterly
+                        """
+                        )
+                    ).fetchall()
+                    existing_set = set((row[0], row[1]) for row in existing_keys)
 
-                    # 새로 수집한 전체 데이터를 삽입
-                    session.bulk_save_objects(records)
+                    # 2. 중복 제거된 새로운 레코드 필터링
+                    new_records = [
+                        r
+                        for r in records
+                        if (r.company_id, r.posted_at) not in existing_set
+                    ]
+
+                    if not new_records:
+                        self.logger.info("신규 분기 데이터 없음")
+                        return
+
+                    # 3. insert-only
+                    session.bulk_save_objects(new_records)
                     session.commit()
-                self.logger.debug(f"분기 데이터 저장 완료 - {len(records)}건")
+                    self.logger.debug(f"분기 데이터 저장 완료 - {len(new_records)}건")
 
             except Exception as e:
                 self.logger.error(f"분기 데이터 저장 중 예외 발생: {e}")

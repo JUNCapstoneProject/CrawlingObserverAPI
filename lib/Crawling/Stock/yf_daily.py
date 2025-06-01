@@ -161,16 +161,39 @@ class YF_Daily:
                 self.logger.warning("저장할 데이터 없음")
                 return
 
+            # 1. 기존에 존재하는 (company_id, posted_at) 조회
             try:
                 with get_session() as session:
-                    # 1. 전체 테이블 비우기
-                    session.execute(text("TRUNCATE TABLE stock_daily"))
+                    existing_keys = session.execute(
+                        text(
+                            """
+                            SELECT company_id, posted_at
+                            FROM stock_daily
+                            """
+                        )
+                    ).fetchall()
+                    existing_set = set((row[0], row[1]) for row in existing_keys)
+            except Exception as e:
+                self.logger.error(f"기존 레코드 조회 실패: {e}")
+                return
 
-                    # 2. bulk insert
-                    session.bulk_save_objects(all_records)
+            # 2. 기존과 중복되지 않는 레코드만 필터링
+            new_records = [
+                record
+                for record in all_records
+                if (record.company_id, record.posted_at) not in existing_set
+            ]
+
+            if not new_records:
+                self.logger.warning("새로운 데이터가 없어 저장 생략")
+                return
+
+            # 3. insert-only
+            try:
+                with get_session() as session:
+                    session.bulk_save_objects(new_records)
                     session.commit()
-                self.logger.debug(f"일간 데이터 저장 완료 - {len(all_records)} 건")
-
+                self.logger.debug(f"일간 데이터 저장 완료 - {len(new_records)} 건")
             except Exception as e_db:
                 self.logger.error(f"일간 데이터 저장 중 예외 발생: {e_db}")
 
