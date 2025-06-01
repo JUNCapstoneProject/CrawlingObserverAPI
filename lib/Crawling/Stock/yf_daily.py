@@ -1,5 +1,5 @@
 from datetime import date
-from sqlalchemy import func
+from sqlalchemy import func, text
 import yfinance as yf
 import pandas as pd
 
@@ -161,25 +161,16 @@ class YF_Daily:
                 self.logger.warning("저장할 데이터 없음")
                 return
 
-            # 중복 제거 (company_id + posted_at 기준)
-            with get_session() as session:
-                existing = set(
-                    session.query(Stock_Daily.company_id, Stock_Daily.posted_at)
-                    .filter(
-                        Stock_Daily.posted_at.in_([r.posted_at for r in all_records])
-                    )
-                    .all()
-                )
-
-            filtered_records = [
-                r for r in all_records if (r.company_id, r.posted_at) not in existing
-            ]
-
             try:
                 with get_session() as session:
-                    session.bulk_save_objects(filtered_records)
+                    # 1. 전체 테이블 비우기
+                    session.execute(text("TRUNCATE TABLE stock_daily"))
+
+                    # 2. bulk insert
+                    session.bulk_save_objects(all_records)
                     session.commit()
-                self.logger.debug(f"일간 데이터 저장 완료 - {len(filtered_records)} 건")
+                self.logger.debug(f"일간 데이터 저장 완료 - {len(all_records)} 건")
+
             except Exception as e_db:
                 self.logger.error(f"일간 데이터 저장 중 예외 발생: {e_db}")
 
