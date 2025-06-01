@@ -119,7 +119,7 @@ class NotifierBase:
                 session.commit()
                 self.logger.debug(f"분석 대상 데이터 - {len(valid_rows)}개")
 
-                valid_rows = valid_rows[:3]
+                # valid_rows = valid_rows[:3]
 
                 return valid_rows
 
