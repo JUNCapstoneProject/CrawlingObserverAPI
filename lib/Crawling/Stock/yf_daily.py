@@ -1,6 +1,5 @@
 from datetime import date
-from sqlalchemy import func
-from sqlalchemy.dialects.mysql import insert
+from sqlalchemy import func, text
 import yfinance as yf
 import pandas as pd
 
@@ -164,33 +163,11 @@ class YF_Daily:
 
             try:
                 with get_session() as session:
-                    for r in all_records:
-                        stmt = (
-                            insert(Stock_Daily)
-                            .values(
-                                company_id=r.company_id,
-                                open=r.open,
-                                close=r.close,
-                                adj_close=r.adj_close,
-                                high=r.high,
-                                low=r.low,
-                                volume=r.volume,
-                                market_cap=r.market_cap,
-                                posted_at=r.posted_at,
-                            )
-                            .on_duplicate_key_update(
-                                open=stmt.inserted.open,
-                                close=stmt.inserted.close,
-                                adj_close=stmt.inserted.adj_close,
-                                high=stmt.inserted.high,
-                                low=stmt.inserted.low,
-                                volume=stmt.inserted.volume,
-                                market_cap=stmt.inserted.market_cap,
-                            )
-                        )
+                    # 1. 전체 테이블 비우기
+                    session.execute(text("TRUNCATE TABLE stock_daily"))
 
-                        session.execute(stmt)
-
+                    # 2. bulk insert
+                    session.bulk_save_objects(all_records)
                     session.commit()
                 self.logger.debug(f"일간 데이터 저장 완료 - {len(all_records)} 건")
 

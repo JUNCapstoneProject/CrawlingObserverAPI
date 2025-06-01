@@ -4,7 +4,7 @@ import yfinance as yf
 import pandas as pd
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from sqlalchemy.dialects.mysql import insert
+from sqlalchemy import text
 
 from lib.Distributor.secretary.session import get_session
 from lib.Distributor.secretary.models.company import Company
@@ -170,28 +170,17 @@ class YF_Quarterly:
                     if result:
                         records.extend(result)
 
+            if not records:
+                self.logger.warning("저장할 데이터 없음")
+                return
+
             try:
                 with get_session() as session:
-                    for r in records:
-                        stmt = (
-                            insert(Stock_Quarterly)
-                            .values(
-                                company_id=r.company_id,
-                                shares=r.shares,
-                                eps=r.eps,
-                                per=r.per,
-                                dividend_yield=r.dividend_yield,
-                                posted_at=r.posted_at,
-                            )
-                            .on_duplicate_key_update(
-                                shares=stmt.inserted.shares,
-                                eps=stmt.inserted.eps,
-                                per=stmt.inserted.per,
-                                dividend_yield=stmt.inserted.dividend_yield,
-                            )
-                        )
-                        session.execute(stmt)
+                    # 테이블 전체 비우기
+                    session.execute(text("TRUNCATE TABLE stock_quarterly"))
 
+                    # 새로 수집한 전체 데이터를 삽입
+                    session.bulk_save_objects(records)
                     session.commit()
                 self.logger.debug(f"분기 데이터 저장 완료 - {len(records)}건")
 

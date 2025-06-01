@@ -43,7 +43,10 @@ class CustomLogger(logging.Logger):
 
         # 콘솔 출력 (rich)
         console_handler = RichHandler(markup=True, show_path=False)
-        console_handler.setLevel(logging.INFO)
+        if self.is_test:
+            console_handler.setLevel(logging.DEBUG)
+        else:
+            console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(console_formatter)
         self.addHandler(console_handler)
 
