@@ -6,7 +6,6 @@ from lib.Distributor.notifier.Notifier import NotifierBase
 from lib.Distributor.socket.messages.request import news_item, news_requests_message
 from lib.Distributor.secretary.session import get_session
 from lib.Distributor.secretary.models.news import NewsTag
-from lib.Distributor.secretary.models.reports import ReportTag
 from lib.Crawling.config.MarketMap import MARKET_INDEX_TICKER
 
 
@@ -48,9 +47,17 @@ class ArticleNotifier(NotifierBase):
 
                     self.logger.debug(f"{result}")
 
-                    analysis = result.get("item", {}).get("result")
-                    if analysis:
-                        self._update_analysis(row["tag_id"], analysis, row["source"])
+                    class_names = ["negative", "neutral", "positive"]
+
+                    analysis_idx = result.get("item", {}).get("result")
+                    if analysis_idx is not None:
+                        if 0 <= analysis_idx < len(class_names):
+                            analysis = class_names[analysis_idx]
+                            self._update_analysis(row["crawling_id"], analysis)
+                        else:
+                            self.logger.warning(
+                                f"유효하지 않은 분석 인덱스 → {analysis_idx}"
+                            )
                     else:
                         self.logger.warning(f"분석 결과 없음 → {row['crawling_id']}")
 
@@ -313,22 +320,13 @@ class ArticleNotifier(NotifierBase):
             self.logger.error(f"에러 발생 {ticker}: {e}")
             return {"priceToBook": []}
 
-    def _update_analysis(self, tag_id: str, analysis: str, source: str) -> None:
-        model_map = {
-            "news": NewsTag,
-            "report": ReportTag,
-        }
-
-        model = model_map.get(source)
-        if not model:
-            self.logger.error(f"unknown source: {source}")
-            return
+    def _update_analysis(self, tag_id: str, analysis: str) -> None:
 
         try:
             with get_session() as session:
                 stmt = (
-                    update(model)
-                    .where(model.tag_id == tag_id)
+                    update(NewsTag)
+                    .where(NewsTag.tag_id == tag_id)
                     .values(ai_analysis=analysis)
                 )
                 result = session.execute(stmt)
@@ -336,6 +334,7 @@ class ArticleNotifier(NotifierBase):
                 if result.rowcount > 0:
                     session.commit()
                 else:
-                    self.logger.warning(f"{tag_id} not matched in {source}")
+                    self.logger.warning(f"{tag_id} not matched in NewsTag")
+
         except Exception as e:
             self.logger.error(f"{tag_id}: {e}")

@@ -50,12 +50,17 @@ class FinancialNotifier(NotifierBase):
                         self.logger.error(f"{msg} → {message}: {row['ticker']}")
                         continue
 
-                    self.logger.debug(f"{result}")
-                    analysis = result.get("item", {}).get("result")
-                    if analysis:
-                        self._update_analysis(
-                            row["crawling_id"], analysis, ["financials"]
-                        )
+                    class_names = ["negative", "positive"]
+
+                    analysis_idx = result.get("item", {}).get("result")
+                    if analysis_idx is not None:
+                        if 0 <= analysis_idx < len(class_names):
+                            analysis = class_names[analysis_idx]
+                            self._update_analysis(row["crawling_id"], analysis)
+                        else:
+                            self.logger.warning(
+                                f"유효하지 않은 분석 인덱스 → {analysis_idx}"
+                            )
                     else:
                         self.logger.warning(f"분석 결과 없음 → {row['crawling_id']}")
 
@@ -187,9 +192,7 @@ class FinancialNotifier(NotifierBase):
             self.logger.error(f"{ticker}: {e}")
             return {"timestamp": [], "o": [], "c": []}
 
-    def _update_analysis(
-        self, crawling_id: str, analysis: str, tables: list[str]
-    ) -> None:
+    def _update_analysis(self, crawling_id: str, analysis: str) -> None:
         try:
             with get_session() as session:
                 stmt = (
