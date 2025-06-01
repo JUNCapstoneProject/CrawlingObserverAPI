@@ -59,7 +59,7 @@ class CustomLogger(logging.Logger):
             backupCount=self.backup_count,
             encoding="utf-8",
         )
-        common_handler.setLevel(logging.INFO)
+        common_handler.setLevel(logging.DEBUG)
         common_handler.setFormatter(formatter)
         self.addHandler(common_handler)
 

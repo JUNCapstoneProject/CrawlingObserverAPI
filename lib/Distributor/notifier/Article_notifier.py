@@ -46,6 +46,8 @@ class ArticleNotifier(NotifierBase):
                         self.logger.error(f"{msg} → {message}: {row['tag']}")
                         continue  # 에러일 경우 이후 로직 실행하지 않음
 
+                    self.logger.debug(f"{result}")
+
                     # 성공(200)일 때만 분석 결과 확인
                     analysis = result.get("item", {}).get("result")
                     if analysis:
