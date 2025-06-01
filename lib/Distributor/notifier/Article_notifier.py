@@ -85,7 +85,7 @@ class ArticleNotifier(NotifierBase):
             ):
                 return None
 
-            item["data"]["news_data"] = content
+            item["data"]["news_data"] = [content]
             item["data"]["stock_history"] = stock_history
             item["data"]["market_history"] = market_history
             item["data"]["income_statement"] = income_statement
