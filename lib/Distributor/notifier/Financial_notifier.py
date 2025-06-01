@@ -132,7 +132,7 @@ class FinancialNotifier(NotifierBase):
 
     def _build_section_fieldwise_padded(
         self, rows: list[dict], mapping: dict[str, str]
-    ) -> dict:
+    ) -> dict | None:
         section = {}
 
         for field, req_key in mapping.items():
@@ -150,8 +150,11 @@ class FinancialNotifier(NotifierBase):
                 if len(values) == 4:
                     break
 
-            if len(values) == 4:
-                section[req_key] = values
+            if len(values) < 4:
+                # 하나라도 4개 미만이면 전체를 None으로
+                return None
+
+            section[req_key] = values
 
         return section
 
