@@ -28,7 +28,7 @@ class FinancialNotifier(NotifierBase):
                 requests_message["body"]["item"] = item
 
                 if not item:
-                    self.logger.debug(f"no item in: {row.get('company')}")
+                    self.logger.debug(f"no item in: {row.get('ticker')}")
                     continue
 
                 if self.socket_condition:
@@ -44,7 +44,7 @@ class FinancialNotifier(NotifierBase):
                         else:
                             msg = f"알 수 없는 상태 코드({status_code})"
 
-                        self.logger.error(f"{msg} → {message}: {row['company']}")
+                        self.logger.error(f"{msg} → {message}: {row['ticker']}")
                         continue
 
                     self.logger.debug(f"{result}")
@@ -62,15 +62,15 @@ class FinancialNotifier(NotifierBase):
 
             except Exception as e:
                 self.logger.error(
-                    f"예외 발생 -> {e}: {row.get('company')}, {row.get('crawling_id')}"
+                    f"예외 발생 -> {e}: {row.get('ticker')}, {row.get('crawling_id')}"
                 )
 
     def _build_item(self, row):
         try:
             item = copy.deepcopy(finance_item)
-            company = row["company"]
+            ticker = row["ticker"]
 
-            recent_rows = self._fetch_recent_quarter_rows(company)  # 5개 row만 반환
+            recent_rows = self._fetch_recent_quarter_rows(ticker)
 
             item["data"]["balance_sheet"] = self._build_section_fieldwise_padded(
                 recent_rows, self._bs_map()
@@ -81,7 +81,7 @@ class FinancialNotifier(NotifierBase):
             item["data"]["cash_flow"] = self._build_section_fieldwise_padded(
                 recent_rows, self._cf_map()
             )
-            item["data"]["chart"] = self._get_chart_data(company)
+            item["data"]["chart"] = self._get_chart_data(ticker)
 
             def all_empty(section):
                 return not any(v for v in section.values() if v)
@@ -97,10 +97,10 @@ class FinancialNotifier(NotifierBase):
             return item
 
         except Exception as e:
-            self.logger.error(f"{e}: company={row.get('company', '?')}")
+            self.logger.error(f"{e}: ticker={row.get('ticker', '?')}")
             return None
 
-    def _fetch_recent_quarter_rows(self, company: str) -> list[dict]:
+    def _fetch_recent_quarter_rows(self, ticker: str) -> list[dict]:
         try:
             with get_session() as session:
                 rows = (
@@ -108,21 +108,19 @@ class FinancialNotifier(NotifierBase):
                         text(
                             """
                         SELECT * FROM notifier_financial_vw
-                        WHERE company = :tag
+                        WHERE ticker = :tag
                         ORDER BY posted_at DESC
                         LIMIT 5
                         """
                         ),
-                        {"tag": company},
+                        {"tag": ticker},
                     )
                     .mappings()
                     .all()
                 )
-
                 return rows or []
-
         except Exception as e:
-            self.logger.error(f"{company}: {e}")
+            self.logger.error(f"{ticker}: {e}")
             return []
 
     def _build_section_fieldwise_padded(
@@ -132,7 +130,6 @@ class FinancialNotifier(NotifierBase):
 
         for field, req_key in mapping.items():
             values = []
-
             for row in rows:
                 if row is None:
                     continue
@@ -146,13 +143,12 @@ class FinancialNotifier(NotifierBase):
                 if len(values) == 4:
                     break
 
-            # 부족하면 앞에서부터 None으로 패딩
             padded = [None] * (4 - len(values)) + values
             section[req_key] = padded
 
         return section
 
-    def _get_chart_data(self, company: str) -> dict:
+    def _get_chart_data(self, ticker: str) -> dict:
         try:
             with get_session() as session:
                 rows = session.execute(
@@ -165,7 +161,7 @@ class FinancialNotifier(NotifierBase):
                         LIMIT 300
                         """
                     ),
-                    {"ticker": company},
+                    {"ticker": ticker},
                 )
 
                 chart = {"timestamp": [], "o": [], "c": []}
@@ -177,16 +173,15 @@ class FinancialNotifier(NotifierBase):
                     chart["c"].append(float(r.close) if r.close is not None else None)
 
                 if not found:
-                    self.logger.debug(f"no data for {company}")
+                    self.logger.debug(f"no data for {ticker}")
 
-                # 최신순 정렬이므로 다시 시간순 정렬
                 for key in chart:
                     chart[key] = list(reversed(chart[key]))
 
                 return chart
 
         except Exception as e:
-            self.logger.error(f"{company}: {e}")
+            self.logger.error(f"{ticker}: {e}")
             return {"timestamp": [], "o": [], "c": []}
 
     def _update_analysis(

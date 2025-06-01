@@ -26,7 +26,7 @@ class ArticleNotifier(NotifierBase):
                 requests_message["body"]["item"] = item
 
                 if not item:
-                    self.logger.debug(f"no item in: {row.get('tag')}")
+                    self.logger.debug(f"no item in: {row.get('ticker')}")
                     continue
 
                 if self.socket_condition:
@@ -43,12 +43,11 @@ class ArticleNotifier(NotifierBase):
                         else:
                             msg = f"알 수 없는 상태 코드({status_code})"
 
-                        self.logger.error(f"{msg} → {message}: {row['tag']}")
-                        continue  # 에러일 경우 이후 로직 실행하지 않음
+                        self.logger.error(f"{msg} → {message}: {row['ticker']}")
+                        continue
 
                     self.logger.debug(f"{result}")
 
-                    # 성공(200)일 때만 분석 결과 확인
                     analysis = result.get("item", {}).get("result")
                     if analysis:
                         self._update_analysis(row["tag_id"], analysis, row["source"])
@@ -61,15 +60,15 @@ class ArticleNotifier(NotifierBase):
 
             except Exception as e:
                 self.logger.error(
-                    f"예외 발생 → {e}: {row.get('tag')}, {row.get('crawling_id')}"
+                    f"예외 발생 → {e}: {row.get('ticker')}, {row.get('crawling_id')}"
                 )
 
     def _build_item(self, row):
         try:
             item = copy.deepcopy(news_item)
-            tag = row.get("tag")
-            if not tag:
-                self.logger.warning(f"tag missing for {row.get('crawling_id')}")
+            ticker = row.get("ticker")
+            if not ticker:
+                self.logger.warning(f"ticker missing for {row.get('crawling_id')}")
                 return None
 
             content = row.get("content") or ""
@@ -77,10 +76,10 @@ class ArticleNotifier(NotifierBase):
                 self.logger.warning(f"content empty for {row.get('crawling_id')}")
                 return None
 
-            stock_history = self._get_stock_history(tag)
-            market_history = self._get_market_history(tag)
-            income_statement = self._get_income_statement(tag)
-            info = self._get_info(tag)
+            stock_history = self._get_stock_history(ticker)
+            market_history = self._get_market_history(ticker)
+            income_statement = self._get_income_statement(ticker)
+            info = self._get_info(ticker)
 
             if (
                 not any(stock_history.values())
@@ -100,10 +99,10 @@ class ArticleNotifier(NotifierBase):
 
         except Exception as e:
             self.logger.error(
-                f"예외 발생 → {e}: {row.get('tag')}, {row.get('crawling_id')}"
+                f"예외 발생 → {e}: {row.get('ticker')}, {row.get('crawling_id')}"
             )
 
-    def _get_stock_history(self, tag: str) -> dict:
+    def _get_stock_history(self, ticker: str) -> dict:
         try:
             with get_session() as session:
                 rows = session.execute(
@@ -116,7 +115,7 @@ class ArticleNotifier(NotifierBase):
                         ORDER BY posted_at
                         """
                     ),
-                    {"tag": tag},
+                    {"tag": ticker},
                 )
 
                 result = {
@@ -137,7 +136,7 @@ class ArticleNotifier(NotifierBase):
                 found = False
                 for r in rows:
                     found = True
-                    result["stock"].append(tag)
+                    result["stock"].append(ticker)
                     result["Date"].append(
                         r._mapping.get("posted_at").strftime("%Y-%m-%d")
                         if r._mapping.get("posted_at")
@@ -154,12 +153,12 @@ class ArticleNotifier(NotifierBase):
                     )
 
                 if not found:
-                    self.logger.debug(f"no data for {tag}")
+                    self.logger.debug(f"no data for {ticker}")
 
                 return result
 
         except Exception as e:
-            self.logger.error(f"예외 발생 {tag}: {e}")
+            self.logger.error(f"예외 발생 {ticker}: {e}")
             return {
                 k: []
                 for k in [
@@ -177,7 +176,6 @@ class ArticleNotifier(NotifierBase):
 
     def _get_market_history(self, ticker: str) -> dict:
         try:
-            # ✅ yfinance로 지수 심볼 추출 (백오프 포함)
             ticker_obj = self.yf_with_backoff(ticker)
             exchange = ticker_obj.info.get("exchange", "").upper()
             index_symbol = MARKET_INDEX_TICKER.get(exchange) or exchange
@@ -247,7 +245,7 @@ class ArticleNotifier(NotifierBase):
                 for k in ["Date", "Open", "Close", "Adj Close", "High", "Low", "Volume"]
             }
 
-    def _get_income_statement(self, tag: str) -> dict:
+    def _get_income_statement(self, ticker: str) -> dict:
         try:
             with get_session() as session:
                 row = (
@@ -255,18 +253,18 @@ class ArticleNotifier(NotifierBase):
                         text(
                             """
                         SELECT * FROM notifier_financial_vw
-                        WHERE company = :tag
+                        WHERE ticker = :tag
                         ORDER BY crawling_id DESC
                         LIMIT 1
                     """
                         ),
-                        {"tag": tag},
+                        {"tag": ticker},
                     )
                     .mappings()
                     .first()
                 )
                 if not row:
-                    self.logger.debug(f"no row for {tag}")
+                    self.logger.debug(f"no row for {ticker}")
                     return {}
                 return {
                     "Total Revenue": [
@@ -285,25 +283,16 @@ class ArticleNotifier(NotifierBase):
                     ],
                 }
         except Exception as e:
-            self.logger.error(f"예외 발생 {tag}: {e}")
+            self.logger.error(f"예외 발생 {ticker}: {e}")
             return {}
 
     def yf_with_backoff(self, ticker_str: str, max_retries: int = 4) -> yf.Ticker:
-        """
-        yfinance Ticker 객체 반환. 401 Unauthorized 발생 시 백오프 재시도
-        :param self: 로거가 포함된 클래스 인스턴스
-        :param ticker_str: 티커 문자열 (ex: "AAPL", "^GSPC")
-        :param purpose: 로그용 태그 (ex: "MarketHistory", "PriceToBook")
-        :param max_retries: 최대 재시도 횟수
-        :return: yf.Ticker 객체
-        """
         import time
-        import yfinance as yf
 
         for retry in range(max_retries + 1):
             try:
                 ticker = yf.Ticker(ticker_str)
-                _ = ticker.info  # 이 시점에서 요청 발생
+                _ = ticker.info
                 return ticker
             except Exception as e:
                 if "401" in str(e):
@@ -313,15 +302,15 @@ class ArticleNotifier(NotifierBase):
                     raise
         raise RuntimeError(f"{ticker_str} 요청 실패 (최대 재시도 초과)")
 
-    def _get_info(self, tag: str) -> dict:
+    def _get_info(self, ticker: str) -> dict:
         try:
-            ticker_obj = self.yf_with_backoff(tag)
+            ticker_obj = self.yf_with_backoff(ticker)
             ptb = ticker_obj.info.get("priceToBook")
             if ptb is None:
-                self.logger.debug(f"no priceToBook for {tag}")
+                self.logger.debug(f"no priceToBook for {ticker}")
             return {"priceToBook": [ptb] if ptb is not None else []}
         except Exception as e:
-            self.logger.error(f"에러 발생 {tag}: {e}")
+            self.logger.error(f"에러 발생 {ticker}: {e}")
             return {"priceToBook": []}
 
     def _update_analysis(self, tag_id: str, analysis: str, source: str) -> None:
