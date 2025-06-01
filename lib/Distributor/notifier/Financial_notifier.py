@@ -8,7 +8,6 @@ from lib.Distributor.socket.messages.request import (
 )
 from lib.Distributor.secretary.session import get_session
 from lib.Distributor.secretary.models.financials import FinancialStatement
-from lib.Crawling.config.MarketMap import MARKET_INDEX_TICKER
 
 
 class FinancialNotifier(NotifierBase):
@@ -32,7 +31,7 @@ class FinancialNotifier(NotifierBase):
                     continue
 
                 if self.socket_condition:
-                    result = self.client.request_tcp(item)
+                    result = self.client.request_tcp(requests_message)
                     status_code = result.get("status_code")
                     message = result.get("message")
 
