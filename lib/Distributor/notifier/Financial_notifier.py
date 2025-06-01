@@ -27,8 +27,8 @@ class FinancialNotifier(NotifierBase):
                 item = self._build_item(row)
                 requests_message["body"]["item"] = item
 
-                with open("temp_request_message.json", "w", encoding="utf-8") as f:
-                    json.dump(requests_message, f, ensure_ascii=False, indent=4)
+                # with open("temp_request_message.json", "w", encoding="utf-8") as f:
+                #     json.dump(requests_message, f, ensure_ascii=False, indent=4)
 
                 if not item:
                     self.logger.debug(f"no item in: {row.get('ticker')}")
@@ -38,7 +38,6 @@ class FinancialNotifier(NotifierBase):
                     result = self.client.request_tcp(requests_message)
                     status_code = result.get("status_code")
                     message = result.get("message")
-
                     if status_code != 200:
                         if status_code == 400:
                             msg = "데이터 입력 오류 (400)"
