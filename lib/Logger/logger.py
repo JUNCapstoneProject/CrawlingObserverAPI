@@ -14,9 +14,6 @@ class CustomLogger(logging.Logger):
 
     def __init__(self, name: str):
         super().__init__(name)
-        log_level_str = Config.get("log_level", "INFO").upper()
-        log_level = getattr(logging, log_level_str, logging.DEBUG)
-        self.setLevel(log_level)
 
         self.error_count = 0
         self.warning_count = 0
@@ -46,7 +43,7 @@ class CustomLogger(logging.Logger):
 
         # 콘솔 출력 (rich)
         console_handler = RichHandler(markup=True, show_path=False)
-        console_handler.setLevel(self.level)
+        console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(console_formatter)
         self.addHandler(console_handler)
 
@@ -59,6 +56,7 @@ class CustomLogger(logging.Logger):
             backupCount=self.backup_count,
             encoding="utf-8",
         )
+        common_handler.setLevel(logging.INFO)
         common_handler.setFormatter(formatter)
         self.addHandler(common_handler)
 
@@ -71,6 +69,7 @@ class CustomLogger(logging.Logger):
             backupCount=self.backup_count,
             encoding="utf-8",
         )
+        indiv_handler.setLevel(logging.DEBUG)
         indiv_handler.setFormatter(formatter)
         self.addHandler(indiv_handler)
 
