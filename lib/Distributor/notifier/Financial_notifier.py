@@ -47,6 +47,7 @@ class FinancialNotifier(NotifierBase):
                         self.logger.error(f"{msg} → {message}: {row['company']}")
                         continue
 
+                    self.logger.debug(f"{result}")
                     analysis = result.get("item", {}).get("result")
                     if analysis:
                         self._update_analysis(
