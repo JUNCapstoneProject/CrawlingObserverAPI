@@ -35,16 +35,12 @@ class SocketClient(SocketInterface):
         try:
             datagram = self.cctx.compress(json.dumps(self.requests_message).encode())
             datagram = base64.b64encode(datagram) + b"<END>"
-            self.logger.debug(f"datagram len : {len(datagram)}")
 
             client_socket.sendall(datagram)
-            self.logger.debug("Datagram sent, waiting for response...")
 
             data = client_socket.recv(1024)
-            self.logger.debug(f"Received data: {data[:20]}...")  # 일부만 출력
 
             message = json.loads(data.decode())
-            self.logger.debug(f"Decoded message: {message[:20]}")
             return message
 
         except Exception as e:
