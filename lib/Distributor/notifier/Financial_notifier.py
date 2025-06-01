@@ -38,6 +38,7 @@ class FinancialNotifier(NotifierBase):
                     result = self.client.request_tcp(requests_message)
                     status_code = result.get("status_code")
                     message = result.get("message")
+
                     if status_code != 200:
                         if status_code == 400:
                             msg = "데이터 입력 오류 (400)"
@@ -51,15 +52,20 @@ class FinancialNotifier(NotifierBase):
 
                     class_names = ["negative", "positive"]
 
-                    analysis_idx = result.get("item", {}).get("result")
-                    if analysis_idx is not None:
-                        if 0 <= analysis_idx < len(class_names):
-                            analysis = class_names[analysis_idx]
-                            self._update_analysis(row["crawling_id"], analysis)
-                        else:
-                            self.logger.warning(
-                                f"유효하지 않은 분석 인덱스 → {analysis_idx}"
-                            )
+                    raw_result = result.get("item", {}).get("result")
+                    if raw_result is not None:
+                        try:
+                            # 문자열, float 등 어떤 형식이든 int 변환 시도
+                            index = int(float(raw_result))
+                            if 0 <= index < len(class_names):
+                                analysis = class_names[index]
+                                self._update_analysis(row["crawling_id"], analysis)
+                            else:
+                                self.logger.warning(
+                                    f"유효하지 않은 분석 인덱스 → {raw_result}"
+                                )
+                        except (ValueError, TypeError):
+                            self.logger.warning(f"분석 인덱스 변환 실패 → {raw_result}")
                     else:
                         self.logger.warning(f"분석 결과 없음 → {row['crawling_id']}")
 
@@ -152,7 +158,7 @@ class FinancialNotifier(NotifierBase):
 
             if len(values) < 4:
                 # 하나라도 4개 미만이면 전체를 None으로
-                return None
+                return {}
 
             section[req_key] = values
 
