@@ -45,19 +45,21 @@ class ArticleNotifier(NotifierBase):
                         self.logger.error(f"{msg} → {message}: {row['ticker']}")
                         continue
 
-                    self.logger.debug(f"{result}")
-
                     class_names = ["negative", "neutral", "positive"]
 
-                    analysis_idx = result.get("item", {}).get("result")
-                    if analysis_idx is not None:
-                        if 0 <= analysis_idx < len(class_names):
-                            analysis = class_names[analysis_idx]
-                            self._update_analysis(row["crawling_id"], analysis)
-                        else:
-                            self.logger.warning(
-                                f"유효하지 않은 분석 인덱스 → {analysis_idx}"
-                            )
+                    raw_result = result.get("item", {}).get("result")
+                    if raw_result is not None:
+                        try:
+                            index = int(float(raw_result))  # 어떤 형식이든 숫자로 처리
+                            if 0 <= index < len(class_names):
+                                analysis = class_names[index]
+                                self._update_analysis(row["crawling_id"], analysis)
+                            else:
+                                self.logger.warning(
+                                    f"유효하지 않은 분석 인덱스 → {raw_result}"
+                                )
+                        except (ValueError, TypeError):
+                            self.logger.warning(f"분석 인덱스 변환 실패 → {raw_result}")
                     else:
                         self.logger.warning(f"분석 결과 없음 → {row['crawling_id']}")
 
