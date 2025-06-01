@@ -3,10 +3,11 @@ import yfinance as yf
 from sqlalchemy import text, update
 
 from lib.Distributor.notifier.Notifier import NotifierBase
-from lib.Distributor.socket.messages.request import news_item
+from lib.Distributor.socket.messages.request import news_item, news_requests_message
 from lib.Distributor.secretary.session import get_session
 from lib.Distributor.secretary.models.news import NewsTag
 from lib.Distributor.secretary.models.reports import ReportTag
+from lib.Crawling.config.MarketMap import MARKET_INDEX_TICKER
 
 
 class ArticleNotifier(NotifierBase):
@@ -18,16 +19,18 @@ class ArticleNotifier(NotifierBase):
         if not rows:
             self.logger.info("처리할 뉴스 없음")
             return
-
         for row in rows:
             try:
+                requests_message = copy.deepcopy(news_requests_message)
                 item = self._build_item(row)
+                requests_message["body"]["item"] = item
+
                 if not item:
                     self.logger.debug(f"no item in: {row.get('tag')}")
                     continue
 
                 if self.socket_condition:
-                    result = self.client.request_tcp(item)
+                    result = self.client.request_tcp(requests_message)
 
                     status_code = result.get("status_code")
                     message = result.get("message")
@@ -117,6 +120,7 @@ class ArticleNotifier(NotifierBase):
                 result = {
                     k: []
                     for k in [
+                        "stock",
                         "Date",
                         "Open",
                         "Close",
@@ -131,6 +135,7 @@ class ArticleNotifier(NotifierBase):
                 found = False
                 for r in rows:
                     found = True
+                    result["stock"].append(tag)
                     result["Date"].append(
                         r._mapping.get("posted_at").strftime("%Y-%m-%d")
                         if r._mapping.get("posted_at")
@@ -156,6 +161,7 @@ class ArticleNotifier(NotifierBase):
             return {
                 k: []
                 for k in [
+                    "stock",
                     "Date",
                     "Open",
                     "Close",
@@ -172,12 +178,14 @@ class ArticleNotifier(NotifierBase):
             # ✅ yfinance로 지수 심볼 추출 (백오프 포함)
             ticker_obj = self.yf_with_backoff(ticker)
             exchange = ticker_obj.info.get("exchange", "").upper()
+            index_symbol = MARKET_INDEX_TICKER.get(exchange) or exchange
 
             if not exchange:
                 self.logger.warning(f"Index symbol not found for {ticker}")
                 return {
                     k: []
                     for k in [
+                        "m_Symbol",
                         "Date",
                         "Open",
                         "Close",
@@ -199,6 +207,7 @@ class ArticleNotifier(NotifierBase):
                 result = {
                     k: []
                     for k in [
+                        "m_Symbol",
                         "Date",
                         "Open",
                         "Close",
@@ -213,6 +222,7 @@ class ArticleNotifier(NotifierBase):
                 for r in rows:
                     found = True
                     r = r._mapping
+                    result["m_Symbol"].append(index_symbol)
                     result["Date"].append(
                         r.get("date").strftime("%Y-%m-%d") if r.get("date") else ""
                     )

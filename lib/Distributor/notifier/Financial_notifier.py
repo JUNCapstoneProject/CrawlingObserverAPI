@@ -2,9 +2,13 @@ import copy
 from sqlalchemy import text, update
 
 from lib.Distributor.notifier.Notifier import NotifierBase
-from lib.Distributor.socket.messages.request import finance_item
+from lib.Distributor.socket.messages.request import (
+    finance_item,
+    finance_requests_message,
+)
 from lib.Distributor.secretary.session import get_session
 from lib.Distributor.secretary.models.financials import FinancialStatement
+from lib.Crawling.config.MarketMap import MARKET_INDEX_TICKER
 
 
 class FinancialNotifier(NotifierBase):
@@ -19,7 +23,10 @@ class FinancialNotifier(NotifierBase):
 
         for row in rows:
             try:
+                requests_message = copy.deepcopy(finance_requests_message)
                 item = self._build_item(row)
+                requests_message["body"]["item"] = item
+
                 if not item:
                     self.logger.debug(f"no item in: {row.get('company')}")
                     continue

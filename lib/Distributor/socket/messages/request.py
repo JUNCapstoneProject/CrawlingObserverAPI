@@ -1,5 +1,5 @@
 host = "msiwol.iptime.org"
-requests_message = {
+news_requests_message = {
     "header": {
         "Host": host,
         "Origin": f"https://{host}",
@@ -8,7 +8,19 @@ requests_message = {
         "Request Method": "GET",
         "Authorization": "Bearer",
     },
-    "body": {"client_id": None, "client_secret": None, "item": {}},  # 아래 item중 한개
+    "body": {"item": {}},
+}
+
+finance_requests_message = {
+    "header": {
+        "Host": host,
+        "Origin": f"https://{host}",
+        "Referer": f"https://{host}/api/analysis/crawling/distributor/notifier",
+        "Request URL": f"https://{host}/api/analysis/finance/lstm",
+        "Request Method": "GET",
+        "Authorization": "Bearer",
+    },
+    "body": {"item": {}},
 }
 
 news_item = {
@@ -16,6 +28,7 @@ news_item = {
     "data": {
         "news_data": None,
         "stock_history": {
+            "stock": [],
             "Date": [],
             "Open": [],
             "Close": [],
@@ -26,6 +39,7 @@ news_item = {
             "Market Cap": [],
         },
         "market_history": {
+            "m_Symbol": [],
             "Date": [],
             "Open": [],
             "Close": [],
