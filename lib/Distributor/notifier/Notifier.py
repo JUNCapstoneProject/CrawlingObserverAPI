@@ -51,7 +51,7 @@ class NotifierBase:
         finally:
             self.logger.log_summary()
 
-    def _fetch_unanalyzed_rows(self, view_name: str, days=5) -> list[dict]:
+    def _fetch_unanalyzed_rows(self, view_name: str, days=1) -> list[dict]:
         try:
             now = datetime.now()
             threshold = now - timedelta(days)
