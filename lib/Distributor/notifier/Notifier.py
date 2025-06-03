@@ -61,6 +61,9 @@ class NotifierBase:
 
                 if not item:
                     self.logger.debug(f"no item in: {row.get('ticker')}")
+                    self.update_analysis_log_time(
+                        row.get("crawling_id"), row.get("ticker")
+                    )
                     continue
 
                 if self.socket_condition:
