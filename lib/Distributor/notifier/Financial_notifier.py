@@ -1,6 +1,5 @@
-import time, random
 import copy
-from sqlalchemy import text, update
+from sqlalchemy import text
 
 from lib.Distributor.notifier.Notifier import NotifierBase
 from lib.Distributor.socket.messages.request import (
@@ -15,59 +14,7 @@ class FinancialNotifier(NotifierBase):
         super().__init__("FinancialNotifier")
 
     def run(self):
-        rows = self._fetch_unanalyzed_rows("notifier_financial_vw")
-        if not rows:
-            self.logger.info("처리할 재무 데이터 없음")
-            return
-
-        for row in rows:
-            try:
-                requests_message = copy.deepcopy(finance_requests_message)
-                item = self._build_item(row)
-                requests_message["body"]["item"] = item
-
-                # with open("temp_request_message.json", "w", encoding="utf-8") as f:
-                #     json.dump(requests_message, f, ensure_ascii=False, indent=4)
-
-                if not item:
-                    self.logger.debug(f"no item in: {row.get('ticker')}")
-                    continue
-
-                if self.socket_condition:
-                    result = self.client.request_tcp(requests_message)
-                    status_code = result.get("status_code")
-                    message = result.get("message")
-
-                    if status_code != 200:
-                        if status_code == 400:
-                            msg = "데이터 입력 오류 (400)"
-                        elif status_code == 500:
-                            msg = "시스템 오류 (500)"
-                        else:
-                            msg = f"알 수 없는 상태 코드({status_code})"
-
-                        self.logger.error(f"{msg} → {message}: {row['ticker']}")
-                        continue
-
-                    raw_result = result.get("item", {}).get("result")
-                    if raw_result is not None:
-                        try:
-                            # 문자열, float 등 어떤 형식이든 int 변환 시도
-                            index = int(float(raw_result))
-                            self._update_analysis(
-                                row["crawling_id"], index, "financial"
-                            )
-                        except (ValueError, TypeError):
-                            self.logger.warning(f"분석 인덱스 변환 실패 → {raw_result}")
-                    else:
-                        self.logger.warning(f"분석 결과 없음 → {row['crawling_id']}")
-                    time.sleep(random.uniform(0.1, 0.4))
-
-            except Exception as e:
-                self.logger.error(
-                    f"예외 발생 -> {e}: {row.get('ticker')}, {row.get('crawling_id')}"
-                )
-                time.sleep(1.0)
+        self._run_common("notifier_financial_vw", finance_requests_message, "financial")
 
     def _build_item(self, row):
         try:
