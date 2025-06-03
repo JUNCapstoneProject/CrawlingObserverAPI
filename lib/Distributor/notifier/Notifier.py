@@ -15,7 +15,7 @@ class NotifierBase:
     def __init__(self, name="NotifierBase"):
         self.client = SocketClient()
         self.logger = get_logger(name)
-        self.interval_sec = Config.get("notifier_interval", 180)
+        self.interval_sec = 180
         self.socket_condition = Config.get("socket_condition", True)
 
     def run_all(self):
@@ -27,20 +27,15 @@ class NotifierBase:
             while True:
                 notifiers = [ArticleNotifier(), FinancialNotifier()]
 
-                # 스레드 병렬 실행
-                with ThreadPoolExecutor(max_workers=len(notifiers)) as executor:
-                    futures = {executor.submit(n.run): n for n in notifiers}
-
-                    for future in as_completed(futures):
-                        notifier = futures[future]
-                        try:
-                            future.result()
-                        except Exception as e:
-                            notifier.logger.error(
-                                f"{notifier.__class__.__name__} 실패: {e}"
-                            )
-                        finally:
-                            notifier.logger.log_summary()
+                for notifier in notifiers:
+                    try:
+                        notifier.run()
+                    except Exception as e:
+                        notifier.logger.error(
+                            f"{notifier.__class__.__name__} 실패: {e}"
+                        )
+                    finally:
+                        notifier.logger.log_summary()
 
                 self.logger.info(f"{self.interval_sec}sec 이후 재실행")
                 time.sleep(self.interval_sec)

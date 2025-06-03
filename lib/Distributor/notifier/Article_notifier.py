@@ -1,4 +1,4 @@
-import copy
+import copy, time, random
 import yfinance as yf
 from sqlalchemy import text, update
 
@@ -54,11 +54,13 @@ class ArticleNotifier(NotifierBase):
                             self.logger.warning(f"분석 인덱스 변환 실패 → {raw_result}")
                     else:
                         self.logger.warning(f"분석 결과 없음 → {row['crawling_id']}")
+                    time.sleep(random.uniform(0.1, 0.4))
 
             except Exception as e:
                 self.logger.error(
                     f"예외 발생 → {e}: {row.get('ticker')}, {row.get('crawling_id')}"
                 )
+                time.sleep(1.0)
 
     def _build_item(self, row):
         try:
