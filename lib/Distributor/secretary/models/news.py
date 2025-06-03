@@ -20,6 +20,7 @@ class News(Base):
     author = Column(VARCHAR(255), nullable=False)
     posted_at = Column(DateTime, nullable=False)
     content = Column(LONGTEXT, nullable=False)
+    ai_analysis = Column(Integer, nullable=True)
 
 
 class NewsTag(Base):
@@ -28,4 +29,3 @@ class NewsTag(Base):
     tag_id = Column(Integer, primary_key=True, nullable=True, autoincrement=True)
     crawling_id = Column(VARCHAR(64), ForeignKey("news.crawling_id"), nullable=False)
     tag = Column(VARCHAR(50), ForeignKey("company.ticker"), nullable=False)
-    ai_analysis = Column(Integer, nullable=True)

@@ -185,7 +185,7 @@ class YF_Daily:
             ]
 
             if not new_records:
-                self.logger.warning("새로운 데이터가 없어 저장 생략")
+                self.logger.warning("신규 일간 데이터 없음")
                 return
 
             # 3. insert-only

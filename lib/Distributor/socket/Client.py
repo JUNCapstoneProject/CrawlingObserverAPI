@@ -16,7 +16,7 @@ class SocketClient(SocketInterface):
 
     @staticmethod
     def resolve_addr(message=None):
-        return "StockAnalysisAPI_service", 4006
+        return "msiwol.iptime.org", 4006
 
     def request_tcp(self, requests_message):
         """

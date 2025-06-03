@@ -1,14 +1,13 @@
 from sqlalchemy import text, update
 import copy, time, random
 from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from lib.Logger.logger import get_logger
 from lib.Distributor.socket.Client import SocketClient
 from lib.Distributor.secretary.session import get_session
 from lib.Config.config import Config  # 설정 관리 클래스
 from lib.Distributor.secretary.models.financials import FinancialStatement
-from lib.Distributor.secretary.models.news import NewsTag
+from lib.Distributor.secretary.models.news import News
 
 
 class NotifierBase:
@@ -210,7 +209,7 @@ class NotifierBase:
 
     def _update_analysis(self, crawling_id: str, analysis: int, source: str) -> None:
         model_map = {
-            "news": NewsTag,
+            "news": News,
             "financial": FinancialStatement,
         }
 
