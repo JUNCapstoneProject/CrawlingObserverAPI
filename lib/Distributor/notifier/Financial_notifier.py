@@ -8,7 +8,6 @@ from lib.Distributor.socket.messages.request import (
     finance_requests_message,
 )
 from lib.Distributor.secretary.session import get_session
-from lib.Distributor.secretary.models.financials import FinancialStatement
 
 
 class FinancialNotifier(NotifierBase):
@@ -50,28 +49,18 @@ class FinancialNotifier(NotifierBase):
                         self.logger.error(f"{msg} → {message}: {row['ticker']}")
                         continue
 
-                    class_names = ["negative", "positive"]
-
                     raw_result = result.get("item", {}).get("result")
                     if raw_result is not None:
                         try:
                             # 문자열, float 등 어떤 형식이든 int 변환 시도
                             index = int(float(raw_result))
-                            if 0 <= index < len(class_names):
-                                analysis = class_names[index]
-                                self._update_analysis(row["crawling_id"], analysis)
-                            else:
-                                self.logger.warning(
-                                    f"유효하지 않은 분석 인덱스 → {raw_result}"
-                                )
+                            self._update_analysis(
+                                row["crawling_id"], index, "financial"
+                            )
                         except (ValueError, TypeError):
                             self.logger.warning(f"분석 인덱스 변환 실패 → {raw_result}")
                     else:
                         self.logger.warning(f"분석 결과 없음 → {row['crawling_id']}")
-
-                else:
-                    analysis = "notifier 테스트"
-                    # self._update_analysis(row["crawling_id"], analysis, ["financials"])
 
             except Exception as e:
                 self.logger.error(
@@ -199,24 +188,6 @@ class FinancialNotifier(NotifierBase):
         except Exception as e:
             self.logger.error(f"{ticker}: {e}")
             return {"timestamp": [], "o": [], "c": []}
-
-    def _update_analysis(self, crawling_id: str, analysis: str) -> None:
-        try:
-            with get_session() as session:
-                stmt = (
-                    update(FinancialStatement)
-                    .where(FinancialStatement.crawling_id == crawling_id)
-                    .values(ai_analysis=analysis)
-                )
-                result = session.execute(stmt)
-
-                if result.rowcount > 0:
-                    session.commit()
-                else:
-                    self.logger.warning(f"crawling_id {crawling_id} not found")
-
-        except Exception as e:
-            self.logger.error(f"crawling_id {crawling_id}: {e}")
 
     def _bs_map(self) -> dict[str, str]:
         return {
