@@ -34,7 +34,7 @@ class YFinanceStockCrawler(CrawlerInterface):
         self._company_map = get_company_map_from_db(
             Config.get("symbol_size.total", 6000)
         )
-        self.failed_tickers: dict[str, str] = {}
+        self.failed_tickers: dict[str, set[str]] = {}
 
         # Configure yfinance logger
         yf_logger = logging.getLogger("yfinance")
@@ -45,8 +45,8 @@ class YFinanceStockCrawler(CrawlerInterface):
 
     def _add_fail(self, ticker: str, msg: str):
         if ticker not in self.failed_tickers:
-            self.failed_tickers[ticker] = []
-        self.failed_tickers[ticker].append(msg)
+            self.failed_tickers[ticker] = set()
+        self.failed_tickers[ticker].add(msg)
 
     def _refresh_price_data_cache(self):
         from .yf_quarterly import YF_Quarterly
@@ -151,11 +151,17 @@ class YFinanceStockCrawler(CrawlerInterface):
                     result["log"]["target_url"] = "yfinance_library"
 
             if self.failed_tickers:
+                total = sum(len(reasons) for reasons in self.failed_tickers.values())
                 self.logger.warning(
-                    f"총 {len(self.failed_tickers)}개 주가 데이터 수집 실패:\n"
+                    f"총 {total}개 주가 데이터 수집 실패:\n"
                     + "\n".join(
-                        f"{ticker}: {', '.join(reasons)}"
+                        f"{ticker}:\n"
+                        + "\n".join(
+                            ", ".join(sorted_reasons[i : i + 10])
+                            for i in range(0, len(sorted_reasons), 10)
+                        )
                         for ticker, reasons in sorted(self.failed_tickers.items())
+                        for sorted_reasons in [sorted(reasons)]
                     )
                 )
 

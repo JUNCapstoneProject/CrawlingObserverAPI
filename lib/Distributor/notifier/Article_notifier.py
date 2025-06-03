@@ -5,7 +5,6 @@ from sqlalchemy import text, update
 from lib.Distributor.notifier.Notifier import NotifierBase
 from lib.Distributor.socket.messages.request import news_item, news_requests_message
 from lib.Distributor.secretary.session import get_session
-from lib.Distributor.secretary.models.news import NewsTag
 from lib.Crawling.config.MarketMap import MARKET_INDEX_TICKER
 
 
@@ -45,27 +44,16 @@ class ArticleNotifier(NotifierBase):
                         self.logger.error(f"{msg} → {message}: {row['ticker']}")
                         continue
 
-                    class_names = ["negative", "neutral", "positive"]
-
                     raw_result = result.get("item", {}).get("result")
                     if raw_result is not None:
                         try:
-                            index = int(float(raw_result))  # 어떤 형식이든 숫자로 처리
-                            if 0 <= index < len(class_names):
-                                analysis = class_names[index]
-                                self._update_analysis(row["crawling_id"], analysis)
-                            else:
-                                self.logger.warning(
-                                    f"유효하지 않은 분석 인덱스 → {raw_result}"
-                                )
+                            # 문자열, float 등 어떤 형식이든 int 변환 시도
+                            index = int(float(raw_result))
+                            self._update_analysis(row["crawling_id"], index, "news")
                         except (ValueError, TypeError):
                             self.logger.warning(f"분석 인덱스 변환 실패 → {raw_result}")
                     else:
                         self.logger.warning(f"분석 결과 없음 → {row['crawling_id']}")
-
-                else:
-                    analysis = "notifier 테스트"
-                    # self._update_analysis(row["tag_id"], analysis, row["source"])
 
             except Exception as e:
                 self.logger.error(
@@ -321,22 +309,3 @@ class ArticleNotifier(NotifierBase):
         except Exception as e:
             self.logger.error(f"에러 발생 {ticker}: {e}")
             return {"priceToBook": []}
-
-    def _update_analysis(self, crawling_id: str, analysis: str) -> None:
-
-        try:
-            with get_session() as session:
-                stmt = (
-                    update(NewsTag)
-                    .where(NewsTag.crawling_id == crawling_id)
-                    .values(ai_analysis=analysis)
-                )
-                result = session.execute(stmt)
-
-                if result.rowcount > 0:
-                    session.commit()
-                else:
-                    self.logger.warning(f"{crawling_id} not matched in NewsTag")
-
-        except Exception as e:
-            self.logger.error(f"{crawling_id}: {e}")

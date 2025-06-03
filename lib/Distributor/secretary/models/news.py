@@ -28,4 +28,4 @@ class NewsTag(Base):
     tag_id = Column(Integer, primary_key=True, nullable=True, autoincrement=True)
     crawling_id = Column(VARCHAR(64), ForeignKey("news.crawling_id"), nullable=False)
     tag = Column(VARCHAR(50), ForeignKey("company.ticker"), nullable=False)
-    ai_analysis = Column(VARCHAR(45), nullable=False)
+    ai_analysis = Column(Integer, nullable=True)

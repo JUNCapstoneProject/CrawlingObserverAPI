@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, DECIMAL, ForeignKey
+from sqlalchemy import Column, DateTime, DECIMAL, ForeignKey, Integer
 from sqlalchemy.dialects.mysql import VARCHAR
 
 from lib.Distributor.secretary.models.core import Base
@@ -17,7 +17,7 @@ class FinancialStatement(Base):
     company = Column(VARCHAR(20), nullable=False)
     financial_type = Column(VARCHAR(255), nullable=False)
     posted_at = Column(DateTime, nullable=False)
-    ai_analysis = Column(VARCHAR(512), nullable=True)
+    ai_analysis = Column(Integer, nullable=True)
 
 
 class IncomeStatement(Base):

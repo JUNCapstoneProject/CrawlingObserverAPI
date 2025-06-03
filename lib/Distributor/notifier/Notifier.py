@@ -1,13 +1,14 @@
-from sqlalchemy import text
+from sqlalchemy import text, update
 import time
 from datetime import datetime, timedelta
-from sqlalchemy import text
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from lib.Logger.logger import get_logger
 from lib.Distributor.socket.Client import SocketClient
 from lib.Distributor.secretary.session import get_session
 from lib.Config.config import Config  # 설정 관리 클래스
+from lib.Distributor.secretary.models.financials import FinancialStatement
+from lib.Distributor.secretary.models.news import NewsTag
 
 
 class NotifierBase:
@@ -51,7 +52,7 @@ class NotifierBase:
         finally:
             self.logger.log_summary()
 
-    def _fetch_unanalyzed_rows(self, view_name: str, days=5) -> list[dict]:
+    def _fetch_unanalyzed_rows(self, view_name: str, days=1) -> list[dict]:
         try:
             now = datetime.now()
             threshold = now - timedelta(days)
@@ -126,3 +127,32 @@ class NotifierBase:
         except Exception as e:
             self.logger.error(f"Failed to fetch unanalyzed rows: {e}")
             return []
+
+    def _update_analysis(self, crawling_id: str, analysis: int, source: str) -> None:
+        model_map = {
+            "news": NewsTag,
+            "financial": FinancialStatement,
+        }
+
+        model = model_map.get(source)
+        if not model:
+            self.logger.error(f"Unknown source: {source}")
+            return
+
+        try:
+            with get_session() as session:
+                stmt = (
+                    update(model)
+                    .where(model.crawling_id == crawling_id)
+                    .values(ai_analysis=analysis)
+                )
+                result = session.execute(stmt)
+
+                if result.rowcount > 0:
+                    session.commit()
+                    self.logger.debug(f"Updated {source} → {crawling_id}: {analysis}")
+                else:
+                    self.logger.warning(f"{crawling_id} not matched in {source}")
+
+        except Exception as e:
+            self.logger.error(f"{source} - {crawling_id}: {type(e).__name__}: {e}")
