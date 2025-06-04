@@ -201,23 +201,60 @@ def store_stock(db, crawling_id, data):
     db.commit()
 
 
-def store_financial_statement_meta(db, crawling_id: str, row: dict) -> None:
+from datetime import datetime, date
+
+
+# 날짜 형식 정규화 함수
+def normalize_posted_at(raw):
+    if isinstance(raw, datetime):
+        return raw
+    elif isinstance(raw, date):
+        return datetime.combine(raw, datetime.min.time())
+    elif isinstance(raw, str):
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d")
+        except ValueError:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    else:
+        raise ValueError(f"지원하지 않는 posted_at 형식: {raw!r}")
+
+
+# 공통 메타 저장 함수 (중복 시 False 반환)
+def store_financial_statement_meta(db, crawling_id: str, row: dict) -> bool:
+    company = row.get("Symbol")
+    financial_type = row.get("financial_type")
+    posted_at = normalize_posted_at(row.get("posted_at"))
+
+    exists = db.execute(
+        select(FinancialStatement).where(
+            FinancialStatement.company == company,
+            FinancialStatement.posted_at == posted_at,
+            FinancialStatement.financial_type == financial_type,
+        )
+    ).first()
+
+    if exists:
+        return False
+
     db.add(
         FinancialStatement(
             crawling_id=crawling_id,
-            company=row.get("Symbol"),
-            financial_type=row.get("financial_type"),
-            posted_at=row.get("posted_at"),
+            company=company,
+            financial_type=financial_type,
+            posted_at=posted_at,
             ai_analysis=row.get("ai_analysis"),
         )
     )
+    return True
 
 
 def store_income_statement(db, crawling_id: str, data: list[dict]) -> None:
     if not data:
         return
 
-    store_financial_statement_meta(db, crawling_id, data[0])
+    if not store_financial_statement_meta(db, crawling_id, data[0]):
+        return
+
     db.flush()
 
     db.bulk_insert_mappings(
@@ -248,7 +285,9 @@ def store_balance_sheet(db, crawling_id: str, data: list[dict]) -> None:
     if not data:
         return
 
-    store_financial_statement_meta(db, crawling_id, data[0])
+    if not store_financial_statement_meta(db, crawling_id, data[0]):
+        return
+
     db.flush()
 
     db.bulk_insert_mappings(
@@ -281,7 +320,9 @@ def store_cash_flow(db, crawling_id: str, data: list[dict]) -> None:
     if not data:
         return
 
-    store_financial_statement_meta(db, crawling_id, data[0])
+    if not store_financial_statement_meta(db, crawling_id, data[0]):
+        return
+
     db.flush()
 
     db.bulk_insert_mappings(
