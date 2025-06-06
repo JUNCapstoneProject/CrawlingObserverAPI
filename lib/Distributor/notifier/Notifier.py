@@ -67,9 +67,6 @@ class NotifierBase:
 
                 if self.socket_condition:
                     result = self.client.request_tcp(requests_message)
-                    self.update_analysis_log_time(
-                        row.get("crawling_id"), row.get("ticker")
-                    )
 
                     status_code = result.get("status_code")
                     message = result.get("message")
@@ -83,6 +80,10 @@ class NotifierBase:
                             msg = f"알 수 없는 상태 코드({status_code})"
                         self.logger.error(f"{msg} → {message}: {row['ticker']}")
                         continue
+
+                    self.update_analysis_log_time(
+                        row.get("crawling_id"), row.get("ticker")
+                    )
 
                     raw_result = result.get("item", {}).get("result")
                     if raw_result is not None:
