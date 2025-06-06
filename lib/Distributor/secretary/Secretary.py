@@ -4,6 +4,8 @@ import pandas as pd
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from datetime import datetime, timedelta, timezone
 
+from lib.Distributor.secretary.models.news import News
+from lib.Distributor.secretary.models.reports import Report
 from lib.Distributor.secretary.session import SessionLocal
 from lib.Logger.logger import get_logger
 from lib.Distributor.secretary.models.core import CrawlingLog, FailLog
@@ -89,6 +91,35 @@ class Secretary:
                 return
             df = df.dropna(how="all").to_dict(orient="records")
 
+        # ✅ 필터링: CrawlingLog 기록 전에 수행
+        if tag in {"news", "reports"}:
+            valid_ticker_map = get_valid_ticker_map(self.db)
+            filtered_df = []
+
+            for row in df:
+                title = row.get("title")
+                if not title:
+                    continue
+
+                model = News if tag == "news" else Report
+                if self.db.execute(select(model).where(model.title == title)).first():
+                    continue
+
+                tags = row.get("tag", "")
+                if not tags:
+                    continue
+
+                chosen_tag = extract_valid_tag(tags, valid_ticker_map)
+                if not chosen_tag:
+                    continue
+
+                row["_chosen_tag"] = chosen_tag  # 이후 핸들러에서 사용 가능
+                filtered_df.append(row)
+
+            df = filtered_df
+            if not df:
+                return
+
         if "fail_log" in result:
             fail_df = [
                 {
@@ -139,3 +170,55 @@ class Secretary:
         except Exception as e:
             self.db.rollback()
             raise
+
+
+from sqlalchemy import select, func
+from lib.Distributor.secretary.models.stock import Stock_Daily
+from lib.Distributor.secretary.models.company import Company
+
+
+def get_valid_ticker_map(db) -> dict[str, int]:
+    """
+    Stock_Daily에서 company_id별로 가장 market_cap이 큰 ticker만 선택
+    :return: {ticker: market_cap}
+    """
+    subquery = (
+        select(
+            Stock_Daily.company_id,
+            Company.ticker,
+            Stock_Daily.market_cap,
+            func.row_number()
+            .over(
+                partition_by=Stock_Daily.company_id,
+                order_by=Stock_Daily.market_cap.desc(),
+            )
+            .label("rank"),
+        )
+        .join(Company, Stock_Daily.company_id == Company.company_id)
+        .subquery()
+    )
+
+    rows = db.execute(
+        select(subquery.c.ticker, subquery.c.market_cap).where(subquery.c.rank == 1)
+    ).fetchall()
+
+    return {row.ticker: row.market_cap for row in rows}
+
+
+def extract_valid_tag(tags: str, valid_ticker_map: dict[str, int]) -> str | None:
+    """
+    태그 문자열에서 유효한 ticker 중 market_cap이 가장 큰 것 선택
+    :param tags: 콤마 구분 문자열
+    :param valid_ticker_map: {ticker: market_cap}
+    :return: 유효한 ticker 하나 or None
+    """
+    candidates = [
+        (t.strip(), valid_ticker_map[t.strip()])
+        for t in tags.split(",")
+        if t.strip() in valid_ticker_map
+    ]
+
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda x: x[1])[0]

@@ -3,8 +3,7 @@ from sqlalchemy import select, func
 from lib.Distributor.secretary.models.news import News, NewsTag
 from lib.Distributor.secretary.models.macro import MacroIndex, MacroEconomics
 from lib.Distributor.secretary.models.reports import Report, ReportTag
-from lib.Distributor.secretary.models.stock import Stock, Stock_Daily
-from lib.Distributor.secretary.models.company import Company
+from lib.Distributor.secretary.models.stock import Stock
 from lib.Distributor.secretary.models.financials import (
     FinancialStatement,
     IncomeStatement,
@@ -14,56 +13,7 @@ from lib.Distributor.secretary.models.financials import (
 from lib.Distributor.secretary.title_translator import translate_title
 
 
-def get_valid_ticker_map(db) -> dict[str, int]:
-    """
-    Stock_Daily에서 company_id별로 가장 market_cap이 큰 ticker만 선택
-    :return: {ticker: market_cap}
-    """
-    subquery = (
-        select(
-            Stock_Daily.company_id,
-            Company.ticker,
-            Stock_Daily.market_cap,
-            func.row_number()
-            .over(
-                partition_by=Stock_Daily.company_id,
-                order_by=Stock_Daily.market_cap.desc(),
-            )
-            .label("rank"),
-        )
-        .join(Company, Stock_Daily.company_id == Company.company_id)
-        .subquery()
-    )
-
-    rows = db.execute(
-        select(subquery.c.ticker, subquery.c.market_cap).where(subquery.c.rank == 1)
-    ).fetchall()
-
-    return {row.ticker: row.market_cap for row in rows}
-
-
-def extract_valid_tag(tags: str, valid_ticker_map: dict[str, int]) -> str | None:
-    """
-    태그 문자열에서 유효한 ticker 중 market_cap이 가장 큰 것 선택
-    :param tags: 콤마 구분 문자열
-    :param valid_ticker_map: {ticker: market_cap}
-    :return: 유효한 ticker 하나 or None
-    """
-    candidates = [
-        (t.strip(), valid_ticker_map[t.strip()])
-        for t in tags.split(",")
-        if t.strip() in valid_ticker_map
-    ]
-
-    if not candidates:
-        return None
-
-    return max(candidates, key=lambda x: x[1])[0]
-
-
 def store_news(db, crawling_id, data):
-    valid_ticker_map = get_valid_ticker_map(db)
-
     for row in data:
         title = row.get("title")
         if not title:
@@ -72,13 +22,17 @@ def store_news(db, crawling_id, data):
         if db.execute(select(News).where(News.title == title)).first():
             continue
 
-        tags = row.get("tag", "")
-        if not tags:
-            continue
-
-        chosen_tag = extract_valid_tag(tags, valid_ticker_map)
+        chosen_tag = row.get("_chosen_tag")
         if not chosen_tag:
             continue
+
+        # 태그부터 저장하고 태그 id를 가져와서 뉴스에 tag_id로 넣기 (crawling_id는 태그에 넣지 않음)
+        tag = db.query(NewsTag).filter_by(tag=chosen_tag).first()
+        if not tag:
+            tag = NewsTag(tag=chosen_tag)
+            db.add(tag)
+            db.flush()
+            db.refresh(tag)
 
         transed_title = translate_title(title)
 
@@ -91,14 +45,12 @@ def store_news(db, crawling_id, data):
             posted_at=row.get("posted_at"),
             content=row.get("content"),
             hits=row.get("hits"),
+            tag_id=tag.tag_id,
         )
         db.add(news)
-        db.add(NewsTag(crawling_id=crawling_id, tag=chosen_tag))
 
 
 def store_reports(db, crawling_id, data):
-    valid_ticker_map = get_valid_ticker_map(db)
-
     for row in data:
         title = row.get("title")
         if not title:
@@ -107,13 +59,17 @@ def store_reports(db, crawling_id, data):
         if db.execute(select(Report).where(Report.title == title)).first():
             continue
 
-        tags = row.get("tag", "")
-        if not tags:
-            continue
-
-        chosen_tag = extract_valid_tag(tags, valid_ticker_map)
+        chosen_tag = row.get("_chosen_tag")
         if not chosen_tag:
             continue
+
+        # 태그부터 저장하고 태그 id를 가져와서 리포트에 tag_id로 넣기 (crawling_id는 태그에 넣지 않음)
+        tag = db.query(ReportTag).filter_by(tag=chosen_tag).first()
+        if not tag:
+            tag = ReportTag(tag=chosen_tag)
+            db.add(tag)
+            db.flush()
+            db.refresh(tag)
 
         transed_title = translate_title(title)
 
@@ -125,9 +81,9 @@ def store_reports(db, crawling_id, data):
             hits=row.get("hits"),
             posted_at=row.get("posted_at"),
             content=row.get("content"),
+            tag_id=tag.tag_id,
         )
         db.add(report)
-        db.add(ReportTag(crawling_id=crawling_id, tag=chosen_tag))
 
 
 def store_macro(db, crawling_id, data):

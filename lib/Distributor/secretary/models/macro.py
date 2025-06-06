@@ -6,11 +6,10 @@ from lib.Distributor.secretary.models.core import Base
 
 class MacroEconomics(Base):
     __tablename__ = "macroeconomics"
-
+    macro_id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     crawling_id = Column(
         VARCHAR(64),
         ForeignKey("crawling_logs.crawling_id"),
-        primary_key=True,
         nullable=False,
     )
     country = Column(VARCHAR(255), nullable=False)

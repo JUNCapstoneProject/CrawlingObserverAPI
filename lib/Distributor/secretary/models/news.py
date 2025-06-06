@@ -7,10 +7,10 @@ from lib.Distributor.secretary.models.core import Base
 class News(Base):
     __tablename__ = "news"
 
+    news_id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     crawling_id = Column(
         VARCHAR(64),
         ForeignKey("crawling_logs.crawling_id"),
-        primary_key=True,
         nullable=False,
     )
     organization = Column(VARCHAR(255), nullable=False)
@@ -21,11 +21,11 @@ class News(Base):
     posted_at = Column(DateTime, nullable=False)
     content = Column(LONGTEXT, nullable=False)
     ai_analysis = Column(Integer, nullable=True)
+    tag_id = Column(Integer, ForeignKey("news_tag.tag_id"), nullable=False)
 
 
 class NewsTag(Base):
     __tablename__ = "news_tag"
 
-    tag_id = Column(Integer, primary_key=True, nullable=True, autoincrement=True)
-    crawling_id = Column(VARCHAR(64), ForeignKey("news.crawling_id"), nullable=False)
+    tag_id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     tag = Column(VARCHAR(50), ForeignKey("company.ticker"), nullable=False)
