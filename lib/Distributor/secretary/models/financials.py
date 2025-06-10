@@ -8,10 +8,12 @@ from lib.Distributor.secretary.models.core import Base
 class FinancialStatement(Base):
     __tablename__ = "financials"
 
+    financials_id = Column(
+        Integer, primary_key=True, nullable=False, autoincrement=True
+    )
     crawling_id = Column(
         VARCHAR(64),
         ForeignKey("crawling_logs.crawling_id"),
-        primary_key=True,
         nullable=False,
     )
     company = Column(VARCHAR(20), nullable=False)
@@ -22,11 +24,10 @@ class FinancialStatement(Base):
 
 class IncomeStatement(Base):
     __tablename__ = "income_statement"
-
+    income_id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     crawling_id = Column(
         VARCHAR(64),
         ForeignKey("financials.crawling_id"),
-        primary_key=True,
         nullable=False,
     )
 
@@ -46,11 +47,10 @@ class IncomeStatement(Base):
 
 class BalanceSheet(Base):
     __tablename__ = "balance_sheet"
-
+    balance_id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     crawling_id = Column(
         VARCHAR(64),
         ForeignKey("financials.crawling_id"),
-        primary_key=True,
         nullable=False,
     )
 
@@ -75,11 +75,10 @@ class BalanceSheet(Base):
 
 class CashFlow(Base):
     __tablename__ = "cash_flow"
-
+    cashflow_id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
     crawling_id = Column(
         VARCHAR(64),
         ForeignKey("financials.crawling_id"),
-        primary_key=True,
         nullable=False,
     )
 

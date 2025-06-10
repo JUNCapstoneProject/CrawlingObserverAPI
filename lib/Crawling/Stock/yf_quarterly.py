@@ -180,7 +180,7 @@ class YF_Quarterly:
                     existing_keys = session.execute(
                         text(
                             """
-                            SELECT company_id, posted_at
+                            SELECT company_id, DATE(posted_at)
                             FROM stock_quarterly
                         """
                         )

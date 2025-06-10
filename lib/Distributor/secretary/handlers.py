@@ -1,10 +1,9 @@
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from lib.Distributor.secretary.models.news import News, NewsTag
 from lib.Distributor.secretary.models.macro import MacroIndex, MacroEconomics
 from lib.Distributor.secretary.models.reports import Report, ReportTag
 from lib.Distributor.secretary.models.stock import Stock
-from lib.Distributor.secretary.models.company import Company
 from lib.Distributor.secretary.models.financials import (
     FinancialStatement,
     IncomeStatement,
@@ -20,24 +19,23 @@ def store_news(db, crawling_id, data):
         if not title:
             continue
 
-        # 이미 동일한 title이 존재하면 skip
-        exists = db.execute(select(News).where(News.title == title)).first()
-        if exists:
+        if db.execute(select(News).where(News.title == title)).first():
             continue
 
-        tags = row.get("tag", "")
-        if not tags:
+        chosen_tag = row.get("_chosen_tag")
+        if not chosen_tag:
             continue
 
-        valid_tags = []
-        for tag in [t.strip() for t in tags.split(",") if t.strip()]:
-            if db.execute(select(Company).where(Company.ticker == tag)).first():
-                valid_tags.append(tag)
-
-        if not valid_tags:
-            continue
+        # 태그부터 저장하고 태그 id를 가져와서 뉴스에 tag_id로 넣기 (crawling_id는 태그에 넣지 않음)
+        tag = db.query(NewsTag).filter_by(tag=chosen_tag).first()
+        if not tag:
+            tag = NewsTag(tag=chosen_tag)
+            db.add(tag)
+            db.flush()
+            db.refresh(tag)
 
         transed_title = translate_title(title)
+
         news = News(
             crawling_id=crawling_id,
             title=title,
@@ -47,11 +45,9 @@ def store_news(db, crawling_id, data):
             posted_at=row.get("posted_at"),
             content=row.get("content"),
             hits=row.get("hits"),
+            tag_id=tag.tag_id,
         )
         db.add(news)
-
-        for tag in valid_tags:
-            db.add(NewsTag(crawling_id=crawling_id, tag=tag))
 
 
 def store_reports(db, crawling_id, data):
@@ -60,24 +56,23 @@ def store_reports(db, crawling_id, data):
         if not title:
             continue
 
-        # 이미 동일한 title이 존재하면 skip
-        exists = db.execute(select(Report).where(Report.title == title)).first()
-        if exists:
+        if db.execute(select(Report).where(Report.title == title)).first():
             continue
 
-        tags = row.get("tag", "")
-        if not tags:
+        chosen_tag = row.get("_chosen_tag")
+        if not chosen_tag:
             continue
 
-        valid_tags = []
-        for tag in [t.strip() for t in tags.split(",") if t.strip()]:
-            if db.execute(select(Company).where(Company.ticker == tag)).first():
-                valid_tags.append(tag)
-
-        if not valid_tags:
-            continue
+        # 태그부터 저장하고 태그 id를 가져와서 리포트에 tag_id로 넣기 (crawling_id는 태그에 넣지 않음)
+        tag = db.query(ReportTag).filter_by(tag=chosen_tag).first()
+        if not tag:
+            tag = ReportTag(tag=chosen_tag)
+            db.add(tag)
+            db.flush()
+            db.refresh(tag)
 
         transed_title = translate_title(title)
+
         report = Report(
             crawling_id=crawling_id,
             title=title,
@@ -86,11 +81,9 @@ def store_reports(db, crawling_id, data):
             hits=row.get("hits"),
             posted_at=row.get("posted_at"),
             content=row.get("content"),
+            tag_id=tag.tag_id,
         )
         db.add(report)
-
-        for tag in valid_tags:
-            db.add(ReportTag(crawling_id=crawling_id, tag=tag))
 
 
 def store_macro(db, crawling_id, data):
@@ -164,23 +157,60 @@ def store_stock(db, crawling_id, data):
     db.commit()
 
 
-def store_financial_statement_meta(db, crawling_id: str, row: dict) -> None:
+from datetime import datetime, date
+
+
+# 날짜 형식 정규화 함수
+def normalize_posted_at(raw):
+    if isinstance(raw, datetime):
+        return raw
+    elif isinstance(raw, date):
+        return datetime.combine(raw, datetime.min.time())
+    elif isinstance(raw, str):
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d")
+        except ValueError:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    else:
+        raise ValueError(f"지원하지 않는 posted_at 형식: {raw!r}")
+
+
+# 공통 메타 저장 함수 (중복 시 False 반환)
+def store_financial_statement_meta(db, crawling_id: str, row: dict) -> bool:
+    company = row.get("Symbol")
+    financial_type = row.get("financial_type")
+    posted_at = normalize_posted_at(row.get("posted_at"))
+
+    exists = db.execute(
+        select(FinancialStatement).where(
+            FinancialStatement.company == company,
+            FinancialStatement.posted_at == posted_at,
+            FinancialStatement.financial_type == financial_type,
+        )
+    ).first()
+
+    if exists:
+        return False
+
     db.add(
         FinancialStatement(
             crawling_id=crawling_id,
-            company=row.get("Symbol"),
-            financial_type=row.get("financial_type"),
-            posted_at=row.get("posted_at"),
+            company=company,
+            financial_type=financial_type,
+            posted_at=posted_at,
             ai_analysis=row.get("ai_analysis"),
         )
     )
+    return True
 
 
 def store_income_statement(db, crawling_id: str, data: list[dict]) -> None:
     if not data:
         return
 
-    store_financial_statement_meta(db, crawling_id, data[0])
+    if not store_financial_statement_meta(db, crawling_id, data[0]):
+        return
+
     db.flush()
 
     db.bulk_insert_mappings(
@@ -211,7 +241,9 @@ def store_balance_sheet(db, crawling_id: str, data: list[dict]) -> None:
     if not data:
         return
 
-    store_financial_statement_meta(db, crawling_id, data[0])
+    if not store_financial_statement_meta(db, crawling_id, data[0]):
+        return
+
     db.flush()
 
     db.bulk_insert_mappings(
@@ -244,7 +276,9 @@ def store_cash_flow(db, crawling_id: str, data: list[dict]) -> None:
     if not data:
         return
 
-    store_financial_statement_meta(db, crawling_id, data[0])
+    if not store_financial_statement_meta(db, crawling_id, data[0]):
+        return
+
     db.flush()
 
     db.bulk_insert_mappings(
